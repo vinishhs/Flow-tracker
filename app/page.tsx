@@ -1,34 +1,60 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ArrowRight, Save, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Save, CheckCircle2, ChevronDown } from "lucide-react";
 import { parseAppleNote, TransactionData, ProcessResult } from "@/lib/services/parser";
+
+interface GroupedTransaction {
+  category: string;
+  total: number;
+  type: 'income' | 'expense';
+  items: Array<{
+    amount: number;
+    date?: string;
+    detail?: string;
+    originalLine?: string;
+  }>;
+}
 
 export default function Home() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<ProcessResult | null>(null);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const handleProcess = () => {
     if (!input.trim()) return;
     const data = parseAppleNote(input);
     setResult(data);
+    setExpandedCategory(null); // Reset expansion on new process
   };
 
-  // Group transactions by category and sum amounts
+  // Nested aggregation: group by category and preserve individual items
   const groupedTransactions = useMemo(() => {
     if (!result) return [];
 
-    const categoryMap = new Map<string, { category: string; amount: number; type: 'income' | 'expense' }>();
+    const categoryMap = new Map<string, GroupedTransaction>();
 
     result.recognized.forEach(tx => {
       const existing = categoryMap.get(tx.category);
       if (existing) {
-        existing.amount += tx.amount;
+        existing.total += tx.amount;
+        existing.items.push({
+          amount: tx.amount,
+          date: tx.date,
+          detail: tx.originalDetail,
+          originalLine: tx.originalLine
+        });
       } else {
         categoryMap.set(tx.category, {
           category: tx.category,
-          amount: tx.amount,
-          type: tx.transaction_type
+          total: tx.amount,
+          type: tx.transaction_type,
+          items: [{
+            amount: tx.amount,
+            date: tx.date,
+            detail: tx.originalDetail,
+            originalLine: tx.originalLine
+          }]
         });
       }
     });
@@ -45,6 +71,10 @@ export default function Home() {
     });
     return { income: inc, expenses: exp, net: inc - exp };
   }, [result]);
+
+  const toggleExpand = (category: string) => {
+    setExpandedCategory(expandedCategory === category ? null : category);
+  };
 
   return (
     <main className="flex h-screen bg-[#0a0a0a] text-white overflow-hidden">
@@ -76,8 +106,13 @@ export default function Home() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-8 space-y-4 pb-32">
-          {groupedTransactions.map((tx) => (
-            <TransactionCard key={tx.category} tx={tx} />
+          {groupedTransactions.map((group) => (
+            <TransactionCard
+              key={group.category}
+              group={group}
+              isExpanded={expandedCategory === group.category}
+              onToggle={() => toggleExpand(group.category)}
+            />
           ))}
         </div>
 
@@ -93,22 +128,78 @@ export default function Home() {
   );
 }
 
-function TransactionCard({ tx }: { tx: { category: string; amount: number; type: 'income' | 'expense' } }) {
-  const isLending = tx.category === "LEND TO";
-  const isOthers = tx.category === "OTHERS";
+function TransactionCard({
+  group,
+  isExpanded,
+  onToggle
+}: {
+  group: GroupedTransaction;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const isLending = group.category === "LEND TO";
+  const isOthers = group.category === "OTHERS";
 
   return (
-    <div className={`p-5 rounded-2xl border border-neutral-800 bg-neutral-900/20 hover:bg-neutral-900/40 transition-all ${isLending ? 'border-l-4 border-l-blue-500' : isOthers ? 'border-l-4 border-l-amber-500' : ''}`}>
-      <div className="flex justify-between items-center">
-        <div className="flex-1">
-          <h3 className="font-bold text-white text-lg leading-tight uppercase tracking-tight">
-            {tx.category}
-          </h3>
-        </div>
-        <div className={`font-mono font-black text-xl ${tx.type === 'income' ? 'text-emerald-500' : 'text-white'}`}>
-          {tx.type === 'income' ? '+' : ''}₹{tx.amount.toLocaleString()}
+    <div
+      className={`rounded-2xl border border-neutral-800 bg-neutral-900/20 transition-all overflow-hidden ${isLending ? 'border-l-4 border-l-blue-500' :
+          isOthers ? 'border-l-4 border-l-amber-500' : ''
+        }`}
+    >
+      {/* Main Card Header - Clickable */}
+      <div
+        onClick={onToggle}
+        className="p-5 cursor-pointer hover:bg-neutral-900/40 transition-all"
+      >
+        <div className="flex justify-between items-center">
+          <div className="flex-1 flex items-center gap-3">
+            <h3 className="font-bold text-white text-lg leading-tight uppercase tracking-tight">
+              {group.category}
+            </h3>
+            <ChevronDown
+              className={`w-4 h-4 text-neutral-500 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''
+                }`}
+            />
+          </div>
+          <div className={`font-mono font-black text-xl ${group.type === 'income' ? 'text-emerald-500' : 'text-white'
+            }`}>
+            {group.type === 'income' ? '+' : ''}₹{group.total.toLocaleString()}
+          </div>
         </div>
       </div>
+
+      {/* Expandable Detail Area */}
+      {isExpanded && (
+        <div className="bg-black/40 border-t border-neutral-800/50 px-5 pb-4 pt-2 animate-in slide-in-from-top-2 duration-300">
+          <div className="space-y-2">
+            {group.items.map((item, idx) => (
+              <div
+                key={idx}
+                className="flex justify-between items-center py-2 px-3 rounded-lg bg-neutral-900/30 hover:bg-neutral-900/50 transition-colors"
+              >
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    {item.date && (
+                      <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-wider">
+                        {item.date}
+                      </span>
+                    )}
+                    {item.detail && (
+                      <span className="text-xs text-neutral-400 font-medium">
+                        {item.detail}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className={`font-mono text-sm font-bold ${group.type === 'income' ? 'text-emerald-400' : 'text-neutral-300'
+                  }`}>
+                  {group.type === 'income' ? '+' : ''}₹{item.amount.toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

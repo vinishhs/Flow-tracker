@@ -6,6 +6,9 @@ export interface TransactionData {
   amount: number;
   category: string;
   transaction_type: TransactionType;
+  date?: string;
+  originalDetail?: string;
+  originalLine?: string;
 }
 
 export interface ProcessResult {
@@ -27,18 +30,27 @@ export function parseAppleNote(text: string): ProcessResult {
       const amountMatch = line.match(/₹\s?(\d+)/);
       const amount = amountMatch ? parseInt(amountMatch[1], 10) : 0;
 
+      // Extract date (e.g., "17 Jan")
+      const dateMatch = line.match(/(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec))/i);
+      const date = dateMatch ? dateMatch[1] : undefined;
+
       let category = "General";
       let type: TransactionType = 'expense';
+      let originalDetail = "";
 
       const lowerLine = line.toLowerCase();
 
       // Check for special keywords FIRST
       if (lowerLine.includes("lent")) {
         category = "LEND TO";
+        // Extract name after "lent to"
+        const detailMatch = line.match(/lent to\s+([^-]+)/i);
+        originalDetail = detailMatch ? detailMatch[1].trim() : "";
       } else if (lowerLine.includes("others")) {
         category = "OTHERS";
-        // For OTHERS, ignore everything after colon if it exists
-        // This is already handled by just setting the category name
+        // Extract detail after "others" or "- O -"
+        const detailMatch = line.match(/(?:others|[-—]\s?[o0]\s?[-—])\s*:?\s*([^-]+)/i);
+        originalDetail = detailMatch ? detailMatch[1].trim() : "";
       } else if (lowerLine.includes("money in")) {
         category = "Money In";
         type = "income";
@@ -61,7 +73,10 @@ export function parseAppleNote(text: string): ProcessResult {
       recognized.push({
         amount,
         category,
-        transaction_type: type
+        transaction_type: type,
+        date,
+        originalDetail: originalDetail || undefined,
+        originalLine: line
       });
     } catch (e) {
       unrecognized.push(line);
