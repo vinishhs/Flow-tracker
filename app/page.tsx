@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
-import { ChevronDown, BarChart3, ArrowUp } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { ChevronDown, BarChart3 } from "lucide-react";
 import { parseAppleNote, TransactionData, ProcessResult } from "@/lib/services/parser";
 import { AnalyticsDonut } from "@/components/analytics-donut";
 
@@ -21,7 +21,6 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const [showFloatie, setShowFloatie] = useState(false);
 
   const dashboardRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -40,20 +39,6 @@ export default function Home() {
   const scrollToChart = () => {
     chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
-
-  // Listen for scroll to show/hide floating button
-  useEffect(() => {
-    const handleScroll = () => {
-      // Show floatie if scrolled past 80% of first section
-      if (window.scrollY > window.innerHeight * 0.8) {
-        setShowFloatie(true);
-      } else {
-        setShowFloatie(false);
-      }
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   // Nested aggregation: group by category and preserve individual items
   const groupedTransactions = useMemo(() => {
@@ -134,17 +119,31 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Bouncing Scroll Down Arrow */}
+        {/* Paired Bouncing Navigation Buttons */}
         {hasData && (
-          <button
-            onClick={scrollToDashboard}
-            className="absolute bottom-12 flex flex-col items-center gap-2 group animate-bounce cursor-pointer"
-          >
-            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity">See Analysis</span>
-            <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-full group-hover:border-emerald-500/50 transition-colors">
-              <ChevronDown className="w-6 h-6 text-white" />
-            </div>
-          </button>
+          <div className="absolute bottom-12 flex items-center gap-12 md:gap-20">
+            {/* 1. See Analysis (Dashboard Scroll) */}
+            <button
+              onClick={scrollToDashboard}
+              className="flex flex-col items-center gap-2 group animate-bounce cursor-pointer transition-all hover:scale-110"
+            >
+              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity">See Analysis</span>
+              <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-full group-hover:border-emerald-500/50 transition-colors shadow-2xl">
+                <ChevronDown className="w-6 h-6 text-white" />
+              </div>
+            </button>
+
+            {/* 2. Quick Insights (Chart Scroll) */}
+            <button
+              onClick={scrollToChart}
+              className="flex flex-col items-center gap-2 group animate-bounce cursor-pointer [animation-delay:200ms] transition-all hover:scale-110"
+            >
+              <span className="text-[9px] font-black uppercase tracking-widest text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">Quick Insights</span>
+              <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-full group-hover:border-blue-500/50 transition-colors shadow-2xl">
+                <BarChart3 className="w-6 h-6 text-white" />
+              </div>
+            </button>
+          </div>
         )}
       </section>
 
@@ -205,19 +204,6 @@ export default function Home() {
           </div>
         </section>
       )}
-
-      {/* Floating Jump Button */}
-      {hasData && showFloatie && (
-        <button
-          onClick={scrollToChart}
-          className="fixed bottom-8 right-8 z-[100] p-4 bg-white/10 backdrop-blur-xl border border-white/10 rounded-full text-white shadow-2xl hover:scale-110 active:scale-90 transition-all group animate-in zoom-in duration-300"
-        >
-          <BarChart3 className="w-6 h-6 group-hover:text-emerald-400 transition-colors" />
-          <span className="absolute right-full mr-4 bg-black/80 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] uppercase tracking-widest font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/5">
-            Quick Insights
-          </span>
-        </button>
-      )}
     </main>
   );
 }
@@ -269,7 +255,7 @@ function TransactionCard({
             {group.items.map((item, idx) => (
               <div
                 key={idx}
-                className="flex justify-between items-center py-3 px-[15px] rounded-xl bg-neutral-900/40 border border-white/5 hover:border-white/10 transition-all hover:bg-neutral-800/40"
+                className="flex justify-between items-center py-[7px] px-[15px] rounded-xl bg-neutral-900/40 border border-white/5 hover:border-white/10 transition-all hover:bg-neutral-800/40"
               >
                 <div className="flex-1">
                   <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-5">
