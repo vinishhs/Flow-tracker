@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
-import { ChevronDown } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { ChevronDown, BarChart3, ArrowUp } from "lucide-react";
 import { parseAppleNote, TransactionData, ProcessResult } from "@/lib/services/parser";
+import { AnalyticsDonut } from "@/components/analytics-donut";
 
 interface GroupedTransaction {
   category: string;
@@ -20,7 +21,10 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [showFloatie, setShowFloatie] = useState(false);
+
   const dashboardRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
 
   const handleProcess = () => {
     if (!input.trim()) return;
@@ -32,6 +36,24 @@ export default function Home() {
   const scrollToDashboard = () => {
     dashboardRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  const scrollToChart = () => {
+    chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  // Listen for scroll to show/hide floating button
+  useEffect(() => {
+    const handleScroll = () => {
+      // Show floatie if scrolled past 80% of first section
+      if (window.scrollY > window.innerHeight * 0.8) {
+        setShowFloatie(true);
+      } else {
+        setShowFloatie(false);
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Nested aggregation: group by category and preserve individual items
   const groupedTransactions = useMemo(() => {
@@ -67,6 +89,11 @@ export default function Home() {
     return Array.from(categoryMap.values());
   }, [result]);
 
+  // Expenses only for the Donut Chart
+  const expenseGroups = useMemo(() => {
+    return groupedTransactions.filter(g => g.type === 'expense');
+  }, [groupedTransactions]);
+
   const totals = useMemo(() => {
     if (!result) return { income: 0, expenses: 0, net: 0 };
     let inc = 0, exp = 0;
@@ -80,7 +107,7 @@ export default function Home() {
   const hasData = result && result.recognized.length > 0;
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white selection:bg-emerald-500/30">
+    <main className="min-h-screen bg-[#0a0a0a] text-white selection:bg-emerald-500/30 overflow-x-hidden">
 
       {/* SECTION 1: ENTRY STATE (ABOVE THE FOLD) */}
       <section className="min-h-screen flex flex-col items-center justify-center p-6 relative">
@@ -138,7 +165,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="max-w-3xl mx-auto space-y-10">
+          <div className="max-w-3xl mx-auto space-y-16">
             {/* Stats Cards Dashboard */}
             <div className="grid grid-cols-3 gap-4 md:gap-6">
               <StatCard label="Total In" val={totals.income} color="text-emerald-500" />
@@ -161,14 +188,35 @@ export default function Home() {
               </div>
             </div>
 
+            {/* ANALYTICS SECTION */}
+            <div ref={chartRef} className="pt-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-600 pl-4 border-l-2 border-neutral-800 mb-8">Visual Breakdown</h3>
+              <AnalyticsDonut data={expenseGroups} />
+            </div>
+
             {/* Final Action */}
-            <div className="pt-12 text-center">
-              <button className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl shadow-emerald-500/10 transition-all hover:scale-[1.01] active:scale-[0.99]">
-                Confirm & Save to Database
+            <div className="pt-8 text-center pb-20">
+              <button className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl shadow-emerald-500/10 transition-all hover:scale-[1.01] active:scale-[0.99] group">
+                <span className="flex items-center justify-center gap-2">
+                  Save 2024 Records <BarChart3 className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </span>
               </button>
             </div>
           </div>
         </section>
+      )}
+
+      {/* Floating Jump Button */}
+      {hasData && showFloatie && (
+        <button
+          onClick={scrollToChart}
+          className="fixed bottom-8 right-8 z-[100] p-4 bg-white/10 backdrop-blur-xl border border-white/10 rounded-full text-white shadow-2xl hover:scale-110 active:scale-90 transition-all group animate-in zoom-in duration-300"
+        >
+          <BarChart3 className="w-6 h-6 group-hover:text-emerald-400 transition-colors" />
+          <span className="absolute right-full mr-4 bg-black/80 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] uppercase tracking-widest font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/5">
+            Quick Insights
+          </span>
+        </button>
       )}
     </main>
   );
@@ -189,8 +237,8 @@ function TransactionCard({
   return (
     <div
       className={`group rounded-[1.5rem] border transition-all duration-500 overflow-hidden ${isExpanded
-        ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5'
-        : 'bg-neutral-900/20 border-neutral-800 hover:bg-neutral-900/40 hover:border-neutral-700'
+          ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5'
+          : 'bg-neutral-900/20 border-neutral-800 hover:bg-neutral-900/40 hover:border-neutral-700'
         } ${isLending ? 'border-l-4 border-l-blue-500' :
           isOthers ? 'border-l-4 border-l-amber-500' : ''
         }`}
@@ -198,7 +246,7 @@ function TransactionCard({
       {/* Header View */}
       <div
         onClick={onToggle}
-        className="p-[15px] md:p-[19px] cursor-pointer flex justify-between items-center"
+        className="p-5 md:p-6 cursor-pointer flex justify-between items-center"
       >
         <div className="flex-1 flex items-center gap-4">
           <div className={`p-2.5 rounded-xl bg-[#0a0a0a] border border-neutral-800 group-hover:border-neutral-600 transition-colors`}>
@@ -216,15 +264,15 @@ function TransactionCard({
 
       {/* Expanded Drill-down (Accordion) */}
       {isExpanded && (
-        <div className="bg-black/60 border-t border-white/5 px-[15px] md:px-[19px] pb-[19px] pt-[7px] animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="space-y-3">
+        <div className="bg-black/60 border-t border-white/5 px-5 md:px-6 pb-6 pt-3 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="space-y-2">
             {group.items.map((item, idx) => (
               <div
                 key={idx}
-                className="flex justify-between items-center py-[7px] px-[15px] rounded-xl bg-neutral-900/40 border border-white/5 hover:border-white/10 transition-all hover:bg-neutral-800/40"
+                className="flex justify-between items-center py-3 px-[15px] rounded-xl bg-neutral-900/40 border border-white/5 hover:border-white/10 transition-all hover:bg-neutral-800/40"
               >
                 <div className="flex-1">
-                  <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-6">
+                  <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-5">
                     {item.date && (
                       <span className="text-[9px] font-black font-mono text-neutral-500 uppercase tracking-widest bg-black rounded-full px-2.5 py-0.5 w-fit border border-white/5">
                         {item.date}
@@ -252,7 +300,7 @@ function TransactionCard({
 
 function StatCard({ label, val, color, highlight }: any) {
   return (
-    <div className={`p-[15px] md:p-[27px] rounded-[2rem] border transition-all hover:scale-[1.02] ${highlight ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5' : 'bg-neutral-900/30 border-neutral-800'
+    <div className={`p-5 md:p-8 rounded-[2rem] border transition-all hover:scale-[1.02] ${highlight ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5' : 'bg-neutral-900/30 border-neutral-800'
       } text-center`}>
       <div className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em] mb-2">{label}</div>
       <div className={`text-xl md:text-3xl font-black ${color} tracking-tight`}>₹{Math.abs(val).toLocaleString()}</div>
