@@ -138,9 +138,9 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="max-w-4xl mx-auto space-y-12">
+          <div className="max-w-3xl mx-auto space-y-10">
             {/* Stats Cards Dashboard */}
-            <div className="grid grid-cols-3 gap-4 md:gap-8">
+            <div className="grid grid-cols-3 gap-4 md:gap-6">
               <StatCard label="Total In" val={totals.income} color="text-emerald-500" />
               <StatCard label="Total Out" val={totals.expenses} color="text-rose-500" />
               <StatCard label="Net Balance" val={totals.net} color="text-white" highlight />
@@ -149,7 +149,7 @@ export default function Home() {
             {/* List of Aggregated Transactions */}
             <div className="space-y-6">
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-600 pl-4 border-l-2 border-neutral-800">Categories</h3>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {groupedTransactions.map((group) => (
                   <TransactionCard
                     key={group.category}
@@ -163,7 +163,7 @@ export default function Home() {
 
             {/* Final Action */}
             <div className="pt-12 text-center">
-              <button className="w-full py-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-3xl font-black text-sm uppercase tracking-[0.4em] shadow-2xl shadow-emerald-500/10 transition-all hover:scale-[1.01] active:scale-[0.99]">
+              <button className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl shadow-emerald-500/10 transition-all hover:scale-[1.01] active:scale-[0.99]">
                 Confirm & Save to Database
               </button>
             </div>
@@ -188,7 +188,7 @@ function TransactionCard({
 
   return (
     <div
-      className={`group rounded-[2rem] border transition-all duration-500 overflow-hidden ${isExpanded
+      className={`group rounded-[1.5rem] border transition-all duration-500 overflow-hidden ${isExpanded
         ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5'
         : 'bg-neutral-900/20 border-neutral-800 hover:bg-neutral-900/40 hover:border-neutral-700'
         } ${isLending ? 'border-l-4 border-l-blue-500' :
@@ -198,17 +198,17 @@ function TransactionCard({
       {/* Header View */}
       <div
         onClick={onToggle}
-        className="p-6 md:p-8 cursor-pointer flex justify-between items-center"
+        className="p-[15px] md:p-[19px] cursor-pointer flex justify-between items-center"
       >
         <div className="flex-1 flex items-center gap-4">
-          <div className={`p-3 rounded-2xl bg-[#0a0a0a] border border-neutral-800 group-hover:border-neutral-600 transition-colors`}>
-            <ChevronDown className={`w-5 h-5 text-neutral-500 transition-transform duration-500 ${isExpanded ? 'rotate-180' : ''}`} />
+          <div className={`p-2.5 rounded-xl bg-[#0a0a0a] border border-neutral-800 group-hover:border-neutral-600 transition-colors`}>
+            <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform duration-500 ${isExpanded ? 'rotate-180' : ''}`} />
           </div>
-          <h3 className="font-bold text-white text-xl md:text-2xl leading-tight uppercase tracking-tight">
+          <h3 className="font-bold text-white text-lg md:text-xl leading-tight uppercase tracking-tight">
             {group.category}
           </h3>
         </div>
-        <div className={`font-mono font-black text-2xl md:text-3xl ${group.type === 'income' ? 'text-emerald-500' : 'text-white'
+        <div className={`font-mono font-black text-xl md:text-2xl ${group.type === 'income' ? 'text-emerald-500' : 'text-white'
           }`}>
           {group.type === 'income' ? '+' : ''}₹{group.total.toLocaleString()}
         </div>
@@ -216,28 +216,28 @@ function TransactionCard({
 
       {/* Expanded Drill-down (Accordion) */}
       {isExpanded && (
-        <div className="bg-black/60 border-t border-white/5 px-6 md:px-8 pb-8 pt-4 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="bg-black/60 border-t border-white/5 px-[15px] md:px-[19px] pb-[19px] pt-[7px] animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="space-y-3">
             {group.items.map((item, idx) => (
               <div
                 key={idx}
-                className="flex justify-between items-center py-4 px-6 rounded-2xl bg-neutral-900/40 border border-white/5 hover:border-white/10 transition-all hover:bg-neutral-800/40"
+                className="flex justify-between items-center py-[7px] px-[15px] rounded-xl bg-neutral-900/40 border border-white/5 hover:border-white/10 transition-all hover:bg-neutral-800/40"
               >
                 <div className="flex-1">
                   <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-6">
                     {item.date && (
-                      <span className="text-[10px] font-black font-mono text-neutral-500 uppercase tracking-widest bg-black rounded-full px-3 py-1 w-fit border border-white/5">
+                      <span className="text-[9px] font-black font-mono text-neutral-500 uppercase tracking-widest bg-black rounded-full px-2.5 py-0.5 w-fit border border-white/5">
                         {item.date}
                       </span>
                     )}
                     {item.detail && (
-                      <span className="text-sm text-neutral-300 font-bold tracking-tight">
+                      <span className="text-xs text-neutral-300 font-bold tracking-tight">
                         {item.detail}
                       </span>
                     )}
                   </div>
                 </div>
-                <div className={`font-mono text-lg font-black ${group.type === 'income' ? 'text-emerald-400' : 'text-neutral-200'
+                <div className={`font-mono text-sm font-black ${group.type === 'income' ? 'text-emerald-400' : 'text-neutral-200'
                   }`}>
                   {group.type === 'income' ? '+' : ''}₹{item.amount.toLocaleString()}
                 </div>
@@ -252,10 +252,10 @@ function TransactionCard({
 
 function StatCard({ label, val, color, highlight }: any) {
   return (
-    <div className={`p-6 md:p-10 rounded-[2.5rem] border transition-all hover:scale-[1.02] ${highlight ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5' : 'bg-neutral-900/30 border-neutral-800'
+    <div className={`p-[15px] md:p-[27px] rounded-[2rem] border transition-all hover:scale-[1.02] ${highlight ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5' : 'bg-neutral-900/30 border-neutral-800'
       } text-center`}>
-      <div className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em] mb-3">{label}</div>
-      <div className={`text-2xl md:text-4xl font-black ${color} tracking-tight`}>₹{Math.abs(val).toLocaleString()}</div>
+      <div className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em] mb-2">{label}</div>
+      <div className={`text-xl md:text-3xl font-black ${color} tracking-tight`}>₹{Math.abs(val).toLocaleString()}</div>
     </div>
   );
 }
