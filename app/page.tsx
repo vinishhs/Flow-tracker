@@ -4,6 +4,7 @@ import { useState, useMemo, useRef } from "react";
 import { ChevronDown, BarChart3 } from "lucide-react";
 import { parseAppleNote, TransactionData, ProcessResult } from "@/lib/services/parser";
 import { AnalyticsDonut } from "@/components/analytics-donut";
+import { DebtLedger } from "@/components/debt-ledger";
 
 interface GroupedTransaction {
   category: string;
@@ -21,6 +22,7 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [isLedgerOpen, setIsLedgerOpen] = useState(false);
 
   const dashboardRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -78,6 +80,22 @@ export default function Home() {
   const expenseGroups = useMemo(() => {
     return groupedTransactions.filter(g => g.type === 'expense');
   }, [groupedTransactions]);
+
+  const debtData = useMemo(() => {
+    if (!result) return [];
+    const debts = new Map<string, number>();
+    result.recognized.forEach(tx => {
+      if (tx.category === "LEND TO" && tx.originalDetail) {
+        const current = debts.get(tx.originalDetail) || 0;
+        debts.set(tx.originalDetail, current + tx.amount);
+      }
+    });
+
+    return Array.from(debts.entries()).map(([name, total]) => ({
+      name,
+      total
+    })).sort((a, b) => b.total - a.total);
+  }, [result]);
 
   const totals = useMemo(() => {
     if (!result) return { income: 0, expenses: 0, net: 0 };
@@ -157,9 +175,19 @@ export default function Home() {
           <div className="sticky top-0 z-50 py-4 -mt-12 mb-10 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/5">
             <div className="max-w-3xl mx-auto flex justify-between items-center px-4 md:px-0">
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">Note Overview</span>
-              <div className="flex items-center gap-4 text-[10px] font-bold text-neutral-400">
-                <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /> IN</span>
-                <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500" /> OUT</span>
+              <div className="flex items-center gap-6">
+                {debtData.length > 0 && (
+                  <button
+                    onClick={() => setIsLedgerOpen(true)}
+                    className="text-[10px] font-black uppercase tracking-widest text-blue-400 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full hover:bg-blue-500/20 transition-all shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                  >
+                    Who Owes Me?
+                  </button>
+                )}
+                <div className="flex items-center gap-4 text-[10px] font-bold text-neutral-400">
+                  <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /> IN</span>
+                  <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500" /> OUT</span>
+                </div>
               </div>
             </div>
           </div>
@@ -202,6 +230,12 @@ export default function Home() {
               </button>
             </div>
           </div>
+
+          <DebtLedger
+            data={debtData}
+            isOpen={isLedgerOpen}
+            onClose={() => setIsLedgerOpen(false)}
+          />
         </section>
       )}
     </main>
@@ -223,8 +257,8 @@ function TransactionCard({
   return (
     <div
       className={`group rounded-[1.5rem] border transition-all duration-500 overflow-hidden ${isExpanded
-          ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5'
-          : 'bg-neutral-900/20 border-neutral-800 hover:bg-neutral-900/40 hover:border-neutral-700'
+        ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5'
+        : 'bg-neutral-900/20 border-neutral-800 hover:bg-neutral-900/40 hover:border-neutral-700'
         } ${isLending ? 'border-l-4 border-l-blue-500' :
           isOthers ? 'border-l-4 border-l-amber-500' : ''
         }`}
