@@ -1,8 +1,8 @@
 "use client";
 
-import { motion, AnimatePresence, useInView } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence, useInView } from 'framer-motion';
+import { X } from 'lucide-react';
 
 interface DebtItem {
     name: string;
@@ -15,10 +15,45 @@ interface DebtLedgerProps {
     onClose: () => void;
 }
 
-export function DebtLedger({ data, isOpen, onClose }: DebtLedgerProps) {
-    const [activeIndex, setActiveIndex] = useState(0);
-    const containerRef = useRef<HTMLDivElement>(null);
+const AnimatedItem = ({ children, delay = 0, index, onMouseEnter, onClick, isShifting }: any) => {
+    const ref = useRef(null);
+    const inView = useInView(ref, { amount: 0.5, triggerOnce: false });
 
+    return (
+        <motion.div
+            ref={ref}
+            data-index={index}
+            onMouseEnter={onMouseEnter}
+            onClick={onClick}
+            initial={{ scale: 0.7, opacity: 0, x: 0 }}
+            animate={{
+                scale: inView ? 1 : 0.7,
+                opacity: inView ? 1 : 0,
+                x: isShifting ? 100 : 0
+            }}
+            transition={{
+                duration: isShifting ? 0.3 : 0.4,
+                delay: isShifting ? 0 : delay,
+                type: "spring",
+                damping: 25,
+                stiffness: 120
+            }}
+            className="mb-4 cursor-pointer"
+        >
+            {children}
+        </motion.div>
+    );
+};
+
+export function DebtLedger({ data, isOpen, onClose }: DebtLedgerProps) {
+    const listRef = useRef<HTMLDivElement>(null);
+    const [selectedIndex, setSelectedIndex] = useState(-1);
+    const [keyboardNav, setKeyboardNav] = useState(false);
+    const [topGradientOpacity, setTopGradientOpacity] = useState(0);
+    const [bottomGradientOpacity, setBottomGradientOpacity] = useState(1);
+    const [isShifting, setIsShifting] = useState(false);
+
+    // Body scroll lock
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';
@@ -30,38 +65,78 @@ export function DebtLedger({ data, isOpen, onClose }: DebtLedgerProps) {
         };
     }, [isOpen]);
 
+    const handleItemMouseEnter = useCallback((index: number) => {
+        setSelectedIndex(index);
+    }, []);
+
+    const handleItemClick = useCallback((index: number) => {
+        setSelectedIndex(index);
+    }, []);
+
+    const handleScroll = useCallback((e: any) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.target;
+        setTopGradientOpacity(Math.min(scrollTop / 50, 1));
+        const bottomDistance = scrollHeight - (scrollTop + clientHeight);
+        setBottomGradientOpacity(scrollHeight <= clientHeight ? 0 : Math.min(bottomDistance / 50, 1));
+    }, []);
+
+    const handleMouseEnterBox = () => {
+        setIsShifting(true);
+        setTimeout(() => setIsShifting(false), 200);
+    };
+
     useEffect(() => {
+        if (!isOpen) return;
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (!isOpen) return;
-            if (e.key === "ArrowDown") {
+            if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
                 e.preventDefault();
-                setActiveIndex((prev) => Math.min(prev + 1, data.length - 1));
-            } else if (e.key === "ArrowUp") {
+                setKeyboardNav(true);
+                setSelectedIndex(prev => Math.min(prev + 1, data.length - 1));
+            } else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
                 e.preventDefault();
-                setActiveIndex((prev) => Math.max(prev - 1, 0));
-            } else if (e.key === "Escape") {
+                setKeyboardNav(true);
+                setSelectedIndex(prev => Math.max(prev - 1, 0));
+            } else if (e.key === 'Enter') {
+                if (selectedIndex >= 0 && selectedIndex < data.length) {
+                    e.preventDefault();
+                    // Action for selection if needed
+                }
+            } else if (e.key === 'Escape') {
                 onClose();
             }
         };
 
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isOpen, data.length, onClose]);
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [data, selectedIndex, isOpen, onClose]);
 
     useEffect(() => {
-        if (isOpen) {
-            const activeElement = document.getElementById(`debt-item-${activeIndex}`);
-            if (activeElement) {
-                activeElement.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        if (!keyboardNav || selectedIndex < 0 || !listRef.current) return;
+        const container = listRef.current;
+        const selectedItem = container.querySelector(`[data-index="${selectedIndex}"]`) as HTMLElement;
+        if (selectedItem) {
+            const extraMargin = 50;
+            const containerScrollTop = container.scrollTop;
+            const containerHeight = container.clientHeight;
+            const itemTop = selectedItem.offsetTop;
+            const itemBottom = itemTop + selectedItem.offsetHeight;
+
+            if (itemTop < containerScrollTop + extraMargin) {
+                container.scrollTo({ top: itemTop - extraMargin, behavior: 'smooth' });
+            } else if (itemBottom > containerScrollTop + containerHeight - extraMargin) {
+                container.scrollTo({
+                    top: itemBottom - containerHeight + extraMargin,
+                    behavior: 'smooth'
+                });
             }
         }
-    }, [activeIndex, isOpen]);
+        setKeyboardNav(false);
+    }, [selectedIndex, keyboardNav]);
 
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 overflow-hidden">
-                    {/* Backdrop Blur */}
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden">
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -70,16 +145,16 @@ export function DebtLedger({ data, isOpen, onClose }: DebtLedgerProps) {
                         className="absolute inset-0 bg-black/60 backdrop-blur-md"
                     />
 
-                    {/* Ledger Box */}
                     <motion.div
                         initial={{ scale: 0.7, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.7, opacity: 0 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                        onMouseEnter={handleMouseEnterBox}
                         className="relative w-full max-w-lg bg-[#0a0a0a] border border-neutral-800 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[80vh] max-h-[500px]"
                     >
                         {/* Header */}
-                        <div className="p-8 border-b border-neutral-800 flex justify-between items-center bg-[#0a0a0a] z-20 flex-shrink-0">
+                        <div className="p-8 border-b border-neutral-800 flex justify-between items-center bg-[#0a0a0a] z-50 flex-shrink-0">
                             <div>
                                 <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-500 mb-1">Debt Ledger</h2>
                                 <h3 className="text-2xl font-black text-white tracking-tighter">Who Owes Me?</h3>
@@ -94,53 +169,48 @@ export function DebtLedger({ data, isOpen, onClose }: DebtLedgerProps) {
                         </div>
 
                         {/* List with Gradients */}
-                        <div className="relative flex-1 overflow-hidden min-h-0">
-                            {/* Scroll Gradients */}
-                            <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-[#0a0a0a] to-transparent z-10 pointer-events-none" />
-                            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#0a0a0a] to-transparent z-10 pointer-events-none" />
-
+                        <div className="relative flex-1 overflow-hidden">
                             <div
-                                ref={containerRef}
-                                className="h-full overflow-y-auto px-6 py-8 space-y-3 custom-scrollbar overscroll-contain"
+                                ref={listRef}
+                                onScroll={handleScroll}
+                                className="h-full overflow-y-auto px-6 py-8 custom-scrollbar overscroll-contain"
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                             >
                                 {data.map((item, index) => (
-                                    <AnimatedListItem
-                                        key={item.name}
-                                        item={item}
+                                    <AnimatedItem
+                                        key={index}
+                                        delay={index * 0.05}
                                         index={index}
-                                        isActive={index === activeIndex}
-                                    />
+                                        isShifting={isShifting}
+                                        onMouseEnter={() => handleItemMouseEnter(index)}
+                                        onClick={() => handleItemClick(index)}
+                                    >
+                                        <div className={`flex justify-between items-center p-5 rounded-2xl transition-all duration-300 border ${selectedIndex === index
+                                                ? 'bg-blue-600/10 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)]'
+                                                : 'bg-[#171717] border-neutral-800 hover:border-neutral-700'
+                                            }`}>
+                                            <span className="text-lg font-bold text-white uppercase tracking-tight">{item.name}</span>
+                                            <span className="font-mono text-xl font-black text-blue-400">
+                                                ₹{item.total.toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </AnimatedItem>
                                 ))}
                             </div>
+
+                            {/* Gradients */}
+                            <div
+                                className="absolute top-0 left-0 right-0 h-[50px] bg-gradient-to-b from-[#0a0a0a] to-transparent pointer-events-none transition-opacity duration-300 z-10"
+                                style={{ opacity: topGradientOpacity }}
+                            />
+                            <div
+                                className="absolute bottom-0 left-0 right-0 h-[80px] bg-gradient-to-t from-[#0a0a0a] to-transparent pointer-events-none transition-opacity duration-300 z-10"
+                                style={{ opacity: bottomGradientOpacity }}
+                            />
                         </div>
                     </motion.div>
                 </div>
             )}
         </AnimatePresence>
-    );
-}
-
-function AnimatedListItem({ item, index, isActive }: { item: DebtItem; index: number; isActive: boolean }) {
-    const ref = useRef(null);
-    const isInView = useInView(ref, { once: true, margin: "-20px" });
-
-    return (
-        <motion.div
-            ref={ref}
-            id={`debt-item-${index}`}
-            initial={{ scale: 0.7, opacity: 0 }}
-            animate={isInView ? { scale: 1, opacity: 1 } : {}}
-            transition={{ duration: 0.4, delay: index * 0.05 }}
-            className={`flex justify-between items-center p-5 rounded-2xl transition-all duration-300 ${isActive
-                ? 'bg-blue-600/10 border border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)]'
-                : 'bg-[#171717] border border-neutral-800 hover:border-neutral-700'
-                }`}
-        >
-            <span className="text-lg font-bold text-white uppercase tracking-tight">{item.name}</span>
-            <span className="font-mono text-xl font-black text-blue-400">
-                ₹{item.total.toLocaleString()}
-            </span>
-        </motion.div>
     );
 }
