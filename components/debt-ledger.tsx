@@ -17,7 +17,7 @@ interface DebtLedgerProps {
 
 const AnimatedItem = ({ children, delay = 0, index, onMouseEnter, onClick, isShifting }: any) => {
     const ref = useRef(null);
-    const inView = useInView(ref, { amount: 0.5, triggerOnce: false });
+    const inView = useInView(ref, { amount: 0.5, once: false });
 
     return (
         <motion.div
@@ -53,16 +53,21 @@ export function DebtLedger({ data, isOpen, onClose }: DebtLedgerProps) {
     const [bottomGradientOpacity, setBottomGradientOpacity] = useState(1);
     const [isShifting, setIsShifting] = useState(false);
 
-    // Body scroll lock
+    // Entrance shift & Body scroll lock
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';
+            // Trigger the shift animation once when opened
+            setIsShifting(true);
+            const timer = setTimeout(() => setIsShifting(false), 300);
+            return () => {
+                clearTimeout(timer);
+                document.body.style.overflow = 'unset';
+            };
         } else {
             document.body.style.overflow = 'unset';
+            setIsShifting(false);
         }
-        return () => {
-            document.body.style.overflow = 'unset';
-        };
     }, [isOpen]);
 
     const handleItemMouseEnter = useCallback((index: number) => {
@@ -80,10 +85,6 @@ export function DebtLedger({ data, isOpen, onClose }: DebtLedgerProps) {
         setBottomGradientOpacity(scrollHeight <= clientHeight ? 0 : Math.min(bottomDistance / 50, 1));
     }, []);
 
-    const handleMouseEnterBox = () => {
-        setIsShifting(true);
-        setTimeout(() => setIsShifting(false), 200);
-    };
 
     useEffect(() => {
         if (!isOpen) return;
@@ -150,7 +151,6 @@ export function DebtLedger({ data, isOpen, onClose }: DebtLedgerProps) {
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.7, opacity: 0 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        onMouseEnter={handleMouseEnterBox}
                         className="relative w-full max-w-lg bg-[#0a0a0a] border border-neutral-800 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[80vh] max-h-[500px]"
                     >
                         {/* Header */}
@@ -186,8 +186,8 @@ export function DebtLedger({ data, isOpen, onClose }: DebtLedgerProps) {
                                         onClick={() => handleItemClick(index)}
                                     >
                                         <div className={`flex justify-between items-center p-5 rounded-2xl transition-all duration-300 border ${selectedIndex === index
-                                                ? 'bg-blue-600/10 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)]'
-                                                : 'bg-[#171717] border-neutral-800 hover:border-neutral-700'
+                                            ? 'bg-blue-600/10 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)]'
+                                            : 'bg-[#171717] border-neutral-800 hover:border-neutral-700'
                                             }`}>
                                             <span className="text-lg font-bold text-white uppercase tracking-tight">{item.name}</span>
                                             <span className="font-mono text-xl font-black text-blue-400">
