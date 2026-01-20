@@ -9,6 +9,8 @@ export interface TransactionData {
   date?: string;
   originalDetail?: string;
   originalLine?: string;
+  senderName?: string;
+  recipientName?: string;
 }
 
 export interface ProcessResult {
@@ -37,6 +39,8 @@ export function parseAppleNote(text: string): ProcessResult {
       let category = "General";
       let type: TransactionType = 'expense';
       let originalDetail = "";
+      let senderName: string | undefined;
+      let recipientName: string | undefined;
 
       const lowerLine = line.toLowerCase();
 
@@ -44,8 +48,9 @@ export function parseAppleNote(text: string): ProcessResult {
       if (lowerLine.includes("lent")) {
         category = "LEND TO";
         // Extract name after "lent to"
-        const detailMatch = line.match(/lent to\s+([^-]+)/i);
-        originalDetail = detailMatch ? detailMatch[1].trim() : "";
+        const detailMatch = line.match(/lent to\s+([^-₹\d]+)/i);
+        recipientName = detailMatch ? detailMatch[1].trim() : "";
+        originalDetail = recipientName;
       } else if (lowerLine.includes("others")) {
         category = "OTHERS";
         // Extract detail after "others" or "- O -"
@@ -54,6 +59,10 @@ export function parseAppleNote(text: string): ProcessResult {
       } else if (lowerLine.includes("money in")) {
         category = "Money In";
         type = "income";
+        // Extract sender name: "Money In : Sow" or "Money In Sow"
+        const senderMatch = line.match(/money in\s*:?\s*([^-₹\d]+)/i);
+        senderName = senderMatch ? senderMatch[1].trim() : "";
+        originalDetail = senderName;
       } else if (lowerLine.includes("food")) {
         category = "Food";
       } else if (lowerLine.includes("travel")) {
@@ -76,7 +85,9 @@ export function parseAppleNote(text: string): ProcessResult {
         transaction_type: type,
         date,
         originalDetail: originalDetail || undefined,
-        originalLine: line
+        originalLine: line,
+        senderName,
+        recipientName
       });
     } catch (e) {
       unrecognized.push(line);

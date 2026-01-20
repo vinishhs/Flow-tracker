@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { ChevronDown, BarChart3 } from "lucide-react";
+import { ChevronDown, BarChart3, Link as LinkIcon } from "lucide-react";
 import { parseAppleNote, TransactionData, ProcessResult } from "@/lib/services/parser";
 import { AnalyticsDonut } from "@/components/analytics-donut";
 import { DebtLedger } from "@/components/debt-ledger";
@@ -15,6 +15,7 @@ interface GroupedTransaction {
     date?: string;
     detail?: string;
     originalLine?: string;
+    personName?: string;
   }>;
 }
 
@@ -42,6 +43,30 @@ export default function Home() {
     chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
+  // 1. Reconciliation Logic (Running Balances)
+  const reconciliation = useMemo(() => {
+    if (!result) return { perPerson: new Map<string, { lent: number, received: number }>(), totalSettled: 0 };
+
+    const perPerson = new Map<string, { lent: number, received: number }>();
+
+    result.recognized.forEach(tx => {
+      const name = (tx.recipientName || tx.senderName)?.toLowerCase().trim();
+      if (!name) return;
+
+      const current = perPerson.get(name) || { lent: 0, received: 0 };
+      if (tx.category === "LEND TO") current.lent += tx.amount;
+      if (tx.category === "Money In") current.received += tx.amount;
+      perPerson.set(name, current);
+    });
+
+    let totalSettled = 0;
+    perPerson.forEach(data => {
+      totalSettled += Math.min(data.lent, data.received);
+    });
+
+    return { perPerson, totalSettled };
+  }, [result]);
+
   // Nested aggregation: group by category and preserve individual items
   const groupedTransactions = useMemo(() => {
     if (!result) return [];
@@ -49,26 +74,25 @@ export default function Home() {
     const categoryMap = new Map<string, GroupedTransaction>();
 
     result.recognized.forEach(tx => {
+      const personName = (tx.recipientName || tx.senderName)?.toLowerCase().trim();
       const existing = categoryMap.get(tx.category);
+      const itemData = {
+        amount: tx.amount,
+        date: tx.date,
+        detail: tx.originalDetail,
+        originalLine: tx.originalLine,
+        personName
+      };
+
       if (existing) {
         existing.total += tx.amount;
-        existing.items.push({
-          amount: tx.amount,
-          date: tx.date,
-          detail: tx.originalDetail,
-          originalLine: tx.originalLine
-        });
+        existing.items.push(itemData);
       } else {
         categoryMap.set(tx.category, {
           category: tx.category,
           total: tx.amount,
           type: tx.transaction_type,
-          items: [{
-            amount: tx.amount,
-            date: tx.date,
-            detail: tx.originalDetail,
-            originalLine: tx.originalLine
-          }]
+          items: [itemData]
         });
       }
     });
@@ -83,29 +107,51 @@ export default function Home() {
 
   const debtData = useMemo(() => {
     if (!result) return [];
-    const debts = new Map<string, number>();
+    const debts = new Map<string, { lent: number, received: number }>();
+
+    // Use original case for display but match with normalized
+    const nameMap = new Map<string, string>(); // normalized -> original
+
     result.recognized.forEach(tx => {
-      if (tx.category === "LEND TO" && tx.originalDetail) {
-        const current = debts.get(tx.originalDetail) || 0;
-        debts.set(tx.originalDetail, current + tx.amount);
-      }
+      const rawName = tx.recipientName || tx.senderName;
+      if (!rawName) return;
+      const normalized = rawName.toLowerCase().trim();
+
+      if (!nameMap.has(normalized)) nameMap.set(normalized, rawName);
+
+      const current = debts.get(normalized) || { lent: 0, received: 0 };
+      if (tx.category === "LEND TO") current.lent += tx.amount;
+      if (tx.category === "Money In") current.received += tx.amount;
+      debts.set(normalized, current);
     });
 
-    return Array.from(debts.entries()).map(([name, total]) => ({
-      name,
-      total
-    })).sort((a, b) => b.total - a.total);
+    return Array.from(debts.entries()).map(([normalized, data]) => ({
+      name: nameMap.get(normalized) || normalized,
+      total: data.lent,
+      received: data.received,
+      balance: data.lent - data.received
+    })).sort((a, b) => b.balance - a.balance);
   }, [result]);
 
   const totals = useMemo(() => {
-    if (!result) return { income: 0, expenses: 0, net: 0 };
+    if (!result) return { income: 0, expenses: 0, net: 0, settled: 0 };
     let inc = 0, exp = 0;
     result.recognized.forEach(tx => {
       if (tx.transaction_type === 'income') inc += tx.amount;
       else exp += tx.amount;
     });
-    return { income: inc, expenses: exp, net: inc - exp };
-  }, [result]);
+
+    const settled = reconciliation.totalSettled;
+    // Adjusted displays
+    return {
+      income: inc - settled,
+      expenses: exp - settled,
+      net: inc - exp,
+      settled
+    };
+  }, [result, reconciliation]);
+
+  const [hoveredPerson, setHoveredPerson] = useState<string | null>(null);
 
   const hasData = result && result.recognized.length > 0;
 
@@ -210,6 +256,9 @@ export default function Home() {
                     group={group}
                     isExpanded={expandedCategory === group.category}
                     onToggle={() => setExpandedCategory(expandedCategory === group.category ? null : group.category)}
+                    reconciliation={reconciliation}
+                    hoveredPerson={hoveredPerson}
+                    setHoveredPerson={setHoveredPerson}
                   />
                 ))}
               </div>
@@ -242,14 +291,22 @@ export default function Home() {
   );
 }
 
+// --- Transaction Card Component ---
+
 function TransactionCard({
   group,
   isExpanded,
-  onToggle
+  onToggle,
+  reconciliation,
+  hoveredPerson,
+  setHoveredPerson
 }: {
   group: GroupedTransaction;
   isExpanded: boolean;
   onToggle: () => void;
+  reconciliation: any;
+  hoveredPerson: string | null;
+  setHoveredPerson: (name: string | null) => void;
 }) {
   const isLending = group.category === "LEND TO";
   const isOthers = group.category === "OTHERS";
@@ -286,31 +343,51 @@ function TransactionCard({
       {isExpanded && (
         <div className="bg-black/60 border-t border-white/5 px-5 md:px-6 pb-6 pt-3 animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="space-y-2">
-            {group.items.map((item, idx) => (
-              <div
-                key={idx}
-                className="flex justify-between items-center py-[7px] px-[15px] rounded-xl bg-neutral-900/40 border border-white/5 hover:border-white/10 transition-all hover:bg-neutral-800/40"
-              >
-                <div className="flex-1">
-                  <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-5">
-                    {item.date && (
-                      <span className="text-[9px] font-black font-mono text-neutral-500 uppercase tracking-widest bg-black rounded-full px-2.5 py-0.5 w-fit border border-white/5">
-                        {item.date}
-                      </span>
-                    )}
-                    {item.detail && (
-                      <span className="text-xs text-neutral-300 font-bold tracking-tight">
-                        {item.detail}
-                      </span>
-                    )}
+            {group.items.map((item, idx) => {
+              const personName = item.personName;
+              const recon = personName ? reconciliation.perPerson.get(personName) : null;
+              const isSettled = recon && Math.min(recon.lent, recon.received) > 0;
+              const isFullySettled = recon && recon.lent === recon.received;
+              const isHighlighted = personName && hoveredPerson === personName;
+
+              return (
+                <div
+                  key={idx}
+                  onMouseEnter={() => personName && setHoveredPerson(personName)}
+                  onMouseLeave={() => setHoveredPerson(null)}
+                  className={`flex justify-between items-center py-[7px] px-[15px] rounded-xl border transition-all duration-300 ${isHighlighted ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-neutral-900/40 border-white/5 hover:border-white/10 hover:bg-neutral-800/40'}`}
+                >
+                  <div className="flex-1">
+                    <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-5">
+                      <div className="flex items-center gap-2">
+                        {item.date && (
+                          <span className="text-[9px] font-black font-mono text-neutral-500 uppercase tracking-widest bg-black rounded-full px-2.5 py-0.5 w-fit border border-white/5">
+                            {item.date}
+                          </span>
+                        )}
+                        {isSettled && (
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                            <LinkIcon className="w-2.5 h-2.5 text-emerald-500" />
+                            <span className="text-[8px] font-black uppercase tracking-tighter text-emerald-500">
+                              {isFullySettled ? 'Settled' : 'Partial'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {item.detail && (
+                        <span className="text-xs text-neutral-300 font-bold tracking-tight">
+                          {item.detail}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className={`font-mono text-sm font-black ${group.type === 'income' ? 'text-emerald-400' : 'text-neutral-200'
+                    }`}>
+                    {group.type === 'income' ? '+' : ''}₹{item.amount.toLocaleString()}
                   </div>
                 </div>
-                <div className={`font-mono text-sm font-black ${group.type === 'income' ? 'text-emerald-400' : 'text-neutral-200'
-                  }`}>
-                  {group.type === 'income' ? '+' : ''}₹{item.amount.toLocaleString()}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

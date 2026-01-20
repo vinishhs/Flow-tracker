@@ -6,7 +6,9 @@ import { X } from 'lucide-react';
 
 interface DebtItem {
     name: string;
-    total: number;
+    total: number; // This is total lent
+    received: number;
+    balance: number;
 }
 
 interface DebtLedgerProps {
@@ -188,10 +190,19 @@ export function DebtLedger({ data, isOpen, onClose }: DebtLedgerProps) {
                                         <div className={`flex justify-between items-center p-5 rounded-2xl transition-all duration-300 border ${selectedIndex === index
                                             ? 'bg-blue-600/10 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)]'
                                             : 'bg-[#171717] border-neutral-800 hover:border-neutral-700'
-                                            }`}>
-                                            <span className="text-lg font-bold text-white uppercase tracking-tight">{item.name}</span>
-                                            <span className="font-mono text-xl font-black text-blue-400">
-                                                ₹{item.total.toLocaleString()}
+                                            } ${item.balance === 0 ? 'opacity-60' : ''}`}>
+                                            <div className="flex flex-col">
+                                                <span className={`text-lg font-bold uppercase tracking-tight ${item.balance === 0 ? 'text-neutral-500 line-through' : 'text-white'}`}>
+                                                    {item.name}
+                                                </span>
+                                                {item.received > 0 && (
+                                                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                                        {item.balance === 0 ? 'Fully Cleared' : `Repaid ₹${item.received.toLocaleString()}`}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className={`font-mono text-xl font-black ${item.balance === 0 ? 'text-emerald-500' : 'text-blue-400'}`}>
+                                                ₹{item.balance.toLocaleString()}
                                             </span>
                                         </div>
                                     </AnimatedItem>
