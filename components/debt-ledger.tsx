@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, CheckCircle2 } from 'lucide-react';
 
 interface DebtItem {
     name: string;
@@ -190,19 +190,24 @@ export function DebtLedger({ data, isOpen, onClose }: DebtLedgerProps) {
                                         <div className={`flex justify-between items-center p-5 rounded-2xl transition-all duration-300 border ${selectedIndex === index
                                             ? 'bg-blue-600/10 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)]'
                                             : 'bg-[#171717] border-neutral-800 hover:border-neutral-700'
-                                            } ${item.balance === 0 ? 'opacity-60' : ''}`}>
-                                            <div className="flex flex-col">
-                                                <span className={`text-lg font-bold uppercase tracking-tight ${item.balance === 0 ? 'text-neutral-500 line-through' : 'text-white'}`}>
-                                                    {item.name}
-                                                </span>
+                                            } ${item.balance <= 0 ? 'opacity-60' : ''}`}>
+                                            <div className="flex-1 flex flex-col">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-lg font-bold uppercase tracking-tight ${item.balance <= 0 ? 'text-neutral-500 line-through' : 'text-white'}`}>
+                                                        {item.name}
+                                                    </span>
+                                                    {item.balance <= 0 && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                                                </div>
                                                 {item.received > 0 && (
                                                     <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
-                                                        {item.balance === 0 ? 'Fully Cleared' : `Repaid ₹${item.received.toLocaleString()}`}
+                                                        {item.balance <= 0 ? 'Fully Cleared' :
+                                                            item.received < item.total ? `Partially Settled (Repaid ₹${item.received.toLocaleString()})` :
+                                                                `Repaid ₹${item.received.toLocaleString()}`}
                                                     </span>
                                                 )}
                                             </div>
-                                            <span className={`font-mono text-xl font-black ${item.balance === 0 ? 'text-emerald-500' : 'text-blue-400'}`}>
-                                                ₹{item.balance.toLocaleString()}
+                                            <span className={`font-mono text-xl font-black ${item.balance <= 0 ? 'text-emerald-500' : 'text-blue-400'}`}>
+                                                ₹{Math.max(0, item.balance).toLocaleString()}
                                             </span>
                                         </div>
                                     </AnimatedItem>

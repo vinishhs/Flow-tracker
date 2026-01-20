@@ -107,15 +107,25 @@ export default function Home() {
 
   const debtData = useMemo(() => {
     if (!result) return [];
-    const debts = new Map<string, { lent: number, received: number }>();
 
-    // Use original case for display but match with normalized
+    // 1. Identify unique names in LEND TO only
+    const debtorNames = new Set<string>();
+    result.recognized.forEach(tx => {
+      if (tx.category === "LEND TO" && tx.recipientName) {
+        debtorNames.add(tx.recipientName.toLowerCase().trim());
+      }
+    });
+
+    const debts = new Map<string, { lent: number, received: number }>();
     const nameMap = new Map<string, string>(); // normalized -> original
 
     result.recognized.forEach(tx => {
       const rawName = tx.recipientName || tx.senderName;
       if (!rawName) return;
       const normalized = rawName.toLowerCase().trim();
+
+      // Only process if they are in the debtorNames set
+      if (!debtorNames.has(normalized)) return;
 
       if (!nameMap.has(normalized)) nameMap.set(normalized, rawName);
 
