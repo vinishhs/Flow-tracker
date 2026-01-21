@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
-import { ChevronDown, BarChart3, Link as LinkIcon, Loader2 } from "lucide-react";
-import { parseAppleNote, ProcessResult } from "@/lib/services/parser";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { ChevronDown, BarChart3, Link as LinkIcon, Loader2, History as HistoryIcon } from "lucide-react";
+import { parseAppleNote, ProcessResult, TransactionData } from "@/lib/services/parser";
 import { AnalyticsDonut } from "@/components/analytics-donut";
 import { DebtLedger } from "@/components/debt-ledger";
+import { HistorySidebar, HistoricalNote } from "@/components/history-sidebar";
 import { supabase } from "@/lib/supabase";
 import { Toaster, toast } from "sonner";
 
@@ -27,6 +28,10 @@ export default function Home() {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [history, setHistory] = useState<HistoricalNote[]>([]);
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  const [hasNewSaves, setHasNewSaves] = useState(false);
 
   const dashboardRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -206,6 +211,7 @@ export default function Home() {
           amount: tx.amount,
           transaction_type: typeMapping,
           category: tx.category,
+          sub_category: tx.originalDetail,
           recipient_name: tx.recipientName,
           sender_name: tx.senderName,
           transaction_date: txDate.toISOString(),
@@ -223,6 +229,8 @@ export default function Home() {
       toast.success("Records archived successfully");
       setInput(""); // Clear input as per requirements
       setResult(null); // Reset dashboard
+      fetchHistory(); // Refresh history
+      setHasNewSaves(true);
     } catch (error: any) {
       console.error("Save failed:", error);
       toast.error(error.message || "Failed to save records");
@@ -231,12 +239,90 @@ export default function Home() {
     }
   };
 
+  const fetchHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('financial_notes')
+        .select('id, created_at, net_balance, raw_text')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      setHistory(data || []);
+    } catch (error) {
+      console.error("Error fetching history:", error);
+    }
+  };
+
+  const loadHistoricalNote = async (noteId: string) => {
+    try {
+      // 1. Fetch the note raw text
+      const note = history.find(n => n.id === noteId);
+      if (note) setInput(note.raw_text);
+
+      // 2. Fetch transactions
+      const { data: dbTransactions, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('note_id', noteId);
+
+      if (error) throw error;
+
+      // 3. Reconstruct TransactionData
+      const recognized: TransactionData[] = dbTransactions.map(tx => ({
+        amount: Number(tx.amount),
+        category: tx.category,
+        transaction_type: tx.transaction_type === 'lending' ? 'expense' : tx.transaction_type,
+        recipientName: tx.recipient_name,
+        senderName: tx.sender_name,
+        originalDetail: tx.sub_category,
+        date: new Date(tx.transaction_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+        originalLine: tx.fingerprint.split('-')[0], // Approximation
+      }));
+
+      setResult({ recognized, unrecognized: [] });
+      setActiveNoteId(noteId);
+      toast.success("Snapshot loaded");
+    } catch (error: any) {
+      console.error("Error loading note:", error);
+      toast.error("Failed to load snapshot");
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
   const [hoveredPerson, setHoveredPerson] = useState<string | null>(null);
 
   const hasData = result && result.recognized.length > 0;
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white selection:bg-emerald-500/30 overflow-x-hidden">
+      {/* Sidebar Overlay */}
+      <HistorySidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        history={history}
+        activeNoteId={activeNoteId}
+        onLoad={loadHistoricalNote}
+      />
+
+      {/* Floating History Toggle */}
+      <div className="fixed top-8 left-8 z-[90]">
+        <button
+          onClick={() => {
+            setIsSidebarOpen(true);
+            setHasNewSaves(false);
+          }}
+          className="p-4 bg-neutral-900 border border-white/5 rounded-full hover:border-emerald-500/50 transition-all shadow-2xl group relative"
+        >
+          <HistoryIcon className="w-5 h-5 text-white group-hover:text-emerald-500 transition-colors" />
+          {hasNewSaves && (
+            <span className="absolute top-0 right-0 w-3 h-3 bg-emerald-500 border-4 border-[#0a0a0a] rounded-full animate-pulse" />
+          )}
+        </button>
+      </div>
 
       {/* SECTION 1: ENTRY STATE (ABOVE THE FOLD) */}
       <section className="min-h-screen flex flex-col items-center justify-center p-6 relative">
