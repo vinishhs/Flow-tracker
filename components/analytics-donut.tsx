@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface ChartData {
@@ -7,6 +8,7 @@ interface ChartData {
     value: number;
     percentage: number;
     color: string;
+    [key: string]: string | number;
 }
 
 const COLORS = [
@@ -24,6 +26,12 @@ const SPECIAL_COLORS: Record<string, string> = {
 };
 
 export function AnalyticsDonut({ data }: { data: any[] }) {
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
     const total = data.reduce((acc, curr) => acc + curr.total, 0);
 
     const chartData: ChartData[] = data.map((item, index) => {
@@ -41,52 +49,56 @@ export function AnalyticsDonut({ data }: { data: any[] }) {
             <div className="flex flex-col md:flex-row items-center gap-12">
                 {/* Donut Chart Side */}
                 <div className="w-full md:w-1/2 h-[300px] relative">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie
-                                data={chartData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={85}
-                                outerRadius={110}
-                                paddingAngle={5}
-                                dataKey="value"
-                                animationBegin={0}
-                                animationDuration={1500}
-                                stroke="none"
-                            >
-                                {chartData.map((entry, index) => (
-                                    <Cell
-                                        key={`cell-${index}`}
-                                        fill={entry.color}
-                                        className="hover:opacity-80 transition-opacity cursor-pointer drop-shadow-[0_0_8px_rgba(0,0,0,0.5)]"
-                                        style={{ filter: `drop-shadow(0 0 12px ${entry.color}44)` }}
+                    {isMounted && (
+                        <>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                    <Pie
+                                        data={chartData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={85}
+                                        outerRadius={110}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                        animationBegin={0}
+                                        animationDuration={1500}
+                                        stroke="none"
+                                    >
+                                        {chartData.map((entry, index) => (
+                                            <Cell
+                                                key={`cell-${index}`}
+                                                fill={entry.color}
+                                                className="hover:opacity-80 transition-opacity cursor-pointer drop-shadow-[0_0_8px_rgba(0,0,0,0.5)]"
+                                                style={{ filter: `drop-shadow(0 0 12px ${entry.color}44)` }}
+                                            />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip
+                                        content={({ active, payload }) => {
+                                            if (active && payload && payload.length) {
+                                                const data = payload[0].payload;
+                                                return (
+                                                    <div className="bg-black/90 border border-white/10 p-3 rounded-xl backdrop-blur-md shadow-2xl">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-1">{data.name}</p>
+                                                        <p className="text-sm font-black text-white">₹{data.value.toLocaleString()}</p>
+                                                        <p className="text-[10px] font-bold text-neutral-400 mt-0.5">{data.percentage}% of total</p>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
                                     />
-                                ))}
-                            </Pie>
-                            <Tooltip
-                                content={({ active, payload }) => {
-                                    if (active && payload && payload.length) {
-                                        const data = payload[0].payload;
-                                        return (
-                                            <div className="bg-black/90 border border-white/10 p-3 rounded-xl backdrop-blur-md shadow-2xl">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-1">{data.name}</p>
-                                                <p className="text-sm font-black text-white">₹{data.value.toLocaleString()}</p>
-                                                <p className="text-[10px] font-bold text-neutral-400 mt-0.5">{data.percentage}% of total</p>
-                                            </div>
-                                        );
-                                    }
-                                    return null;
-                                }}
-                            />
-                        </PieChart>
-                    </ResponsiveContainer>
+                                </PieChart>
+                            </ResponsiveContainer>
 
-                    {/* Center Label */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500 mb-1">Total Out</span>
-                        <span className="text-3xl font-black text-white">₹{total.toLocaleString()}</span>
-                    </div>
+                            {/* Center Label */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500 mb-1">Total Out</span>
+                                <span className="text-3xl font-black text-white">₹{total.toLocaleString()}</span>
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {/* Legend Side */}

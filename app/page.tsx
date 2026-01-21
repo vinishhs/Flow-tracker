@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { ChevronDown, BarChart3, Link as LinkIcon } from "lucide-react";
-import { parseAppleNote, TransactionData, ProcessResult } from "@/lib/services/parser";
+import { ChevronDown, BarChart3, Link as LinkIcon, Loader2 } from "lucide-react";
+import { parseAppleNote, ProcessResult } from "@/lib/services/parser";
 import { AnalyticsDonut } from "@/components/analytics-donut";
 import { DebtLedger } from "@/components/debt-ledger";
+import { supabase } from "@/lib/supabase";
+import { Toaster, toast } from "sonner";
 
 interface GroupedTransaction {
   category: string;
@@ -24,6 +26,7 @@ export default function Home() {
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const dashboardRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -161,6 +164,73 @@ export default function Home() {
     };
   }, [result, reconciliation]);
 
+  const handleSaveRecords = async () => {
+    if (!result || result.recognized.length === 0) return;
+
+    setIsSaving(true);
+    try {
+      // 1. Fallback user_id (using 'all zeros' UUID as requested)
+      const userId = '00000000-0000-0000-0000-000000000000';
+
+      // 2. Insert master record using settled/adjusted totals
+      const { data: note, error: noteError } = await supabase
+        .from('financial_notes')
+        .insert({
+          user_id: userId,
+          raw_text: input,
+          total_in: totals.income,
+          total_out: totals.expenses,
+          net_balance: totals.net,
+          settled_amount: totals.settled
+        })
+        .select('id')
+        .single();
+
+      if (noteError) throw noteError;
+
+      // 3. Prepare individual transactions
+      const transactionsToInsert = result.recognized.map(tx => {
+        // Parse date: "17 Jan" -> "2026-01-17" (using 2026 as current year)
+        let txDate = new Date();
+        if (tx.date) {
+          const dateStr = `${tx.date} 2026`;
+          txDate = new Date(dateStr);
+        }
+
+        // Map LEND TO to 'lending' enum type
+        const typeMapping = tx.category === "LEND TO" ? 'lending' : tx.transaction_type;
+
+        return {
+          user_id: userId,
+          note_id: note.id,
+          amount: tx.amount,
+          transaction_type: typeMapping,
+          category: tx.category,
+          recipient_name: tx.recipientName,
+          sender_name: tx.senderName,
+          transaction_date: txDate.toISOString(),
+          fingerprint: `${tx.originalLine}-${Date.now()}-${Math.random()}`
+        };
+      });
+
+      // 4. Batch insert detail records
+      const { error: txError } = await supabase
+        .from('transactions')
+        .insert(transactionsToInsert);
+
+      if (txError) throw txError;
+
+      toast.success("Records archived successfully");
+      setInput(""); // Clear input as per requirements
+      setResult(null); // Reset dashboard
+    } catch (error: any) {
+      console.error("Save failed:", error);
+      toast.error(error.message || "Failed to save records");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const [hoveredPerson, setHoveredPerson] = useState<string | null>(null);
 
   const hasData = result && result.recognized.length > 0;
@@ -282,12 +352,25 @@ export default function Home() {
 
             {/* Final Action */}
             <div className="pt-8 text-center pb-20">
-              <button className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl shadow-emerald-500/10 transition-all hover:scale-[1.01] active:scale-[0.99] group">
+              <button
+                onClick={handleSaveRecords}
+                disabled={isSaving || !hasData}
+                className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:scale-100 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl shadow-emerald-500/10 transition-all hover:scale-[1.01] active:scale-[0.99] group"
+              >
                 <span className="flex items-center justify-center gap-2">
-                  Save 2024 Records <BarChart3 className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> SAVING...
+                    </>
+                  ) : (
+                    <>
+                      SAVE RECORDS <BarChart3 className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
                 </span>
               </button>
             </div>
+            <Toaster position="bottom-right" theme="dark" />
           </div>
 
           <DebtLedger
