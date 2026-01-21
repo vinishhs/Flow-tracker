@@ -90,7 +90,6 @@ export function HistorySidebar({ isOpen, onClose, history, activeNoteId, onLoad 
 function NoteCard({ note, isActive, onLoad }: { note: HistoricalNote; isActive: boolean; onLoad: () => void }) {
     const date = new Date(note.created_at);
     const formattedDate = date.toLocaleDateString('en-IN', {
-        day: '2-digit',
         month: 'short',
         year: 'numeric'
     });
@@ -103,8 +102,8 @@ function NoteCard({ note, isActive, onLoad }: { note: HistoricalNote; isActive: 
         <button
             onClick={onLoad}
             className={`w-full text-left p-4 rounded-3xl border transition-all duration-300 group ${isActive
-                    ? "bg-emerald-500/10 border-emerald-500/30 scale-[1.02]"
-                    : "bg-neutral-900/40 border-white/5 hover:border-white/10 hover:bg-neutral-900/60"
+                ? "bg-emerald-500/10 border-emerald-500/30 scale-[1.02]"
+                : "bg-neutral-900/40 border-white/5 hover:border-white/10 hover:bg-neutral-900/60"
                 }`}
         >
             <div className="flex justify-between items-start mb-2">
@@ -115,8 +114,8 @@ function NoteCard({ note, isActive, onLoad }: { note: HistoricalNote; isActive: 
                     </span>
                 </div>
                 <div className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-tighter ${note.net_balance >= 0
-                        ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border border-rose-500/20"
+                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                    : "bg-rose-500/10 text-rose-500 border border-rose-500/20"
                     }`}>
                     {note.net_balance >= 0 ? "+" : ""}₹{Math.abs(note.net_balance).toLocaleString()}
                 </div>
