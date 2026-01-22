@@ -44,7 +44,10 @@ export function TrendsDashboard({ onBack }: { onBack: () => void }) {
     const [summary, setSummary] = useState<MonthlySummary[]>([]);
     const [categoryTrends, setCategoryTrends] = useState<CategoryTrend[]>([]);
     const [globalStats, setGlobalStats] = useState<GlobalStats | null>(null);
+    const [categoryItems, setCategoryItems] = useState<Record<string, any[]>>({});
     const [isLoading, setIsLoading] = useState(true);
+    const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
     useEffect(() => {
         const fetchData = async () => {
@@ -52,10 +55,11 @@ export function TrendsDashboard({ onBack }: { onBack: () => void }) {
             try {
                 const userId = '00000000-0000-0000-0000-000000000000'; // Fallback
 
-                const [summaryRes, categoryRes, globalRes] = await Promise.all([
+                const [summaryRes, categoryRes, globalRes, transactionsRes] = await Promise.all([
                     supabase.from('monthly_financial_summary').select('*').eq('user_id', userId).order('month', { ascending: true }),
                     supabase.from('category_spending_trends').select('*').eq('user_id', userId).order('month', { ascending: true }),
-                    supabase.from('global_financial_stats').select('*').eq('user_id', userId).single()
+                    supabase.from('global_financial_stats').select('*').eq('user_id', userId).single(),
+                    supabase.from('transactions').select('category, amount, recipient_name, transaction_type').eq('user_id', userId).order('transaction_date', { ascending: false }).limit(300)
                 ]);
 
                 if (summaryRes.data) setSummary(summaryRes.data.map(d => ({
@@ -65,6 +69,21 @@ export function TrendsDashboard({ onBack }: { onBack: () => void }) {
 
                 if (categoryRes.data) setCategoryTrends(categoryRes.data);
                 if (globalRes.data) setGlobalStats(globalRes.data);
+
+                if (transactionsRes.data) {
+                    const grouped: Record<string, any[]> = {};
+                    transactionsRes.data.forEach(tx => {
+                        if (tx.transaction_type !== 'expense' && tx.category !== 'LEND TO') return;
+                        if (!grouped[tx.category]) grouped[tx.category] = [];
+                        if (grouped[tx.category].length < 5) {
+                            grouped[tx.category].push({
+                                description: tx.recipient_name || "Misc",
+                                amount: tx.amount
+                            });
+                        }
+                    });
+                    setCategoryItems(grouped);
+                }
 
             } catch (error) {
                 console.error("Error fetching trend data:", error);
@@ -202,23 +221,84 @@ export function TrendsDashboard({ onBack }: { onBack: () => void }) {
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                             <div className="bg-white/[0.03] border border-white/[0.08] rounded-[2.5rem] p-8 md:p-10">
                                 <h3 className="text-sm font-black uppercase tracking-widest text-white mb-8">Category Dominance</h3>
-                                <div className="space-y-6">
-                                    {getTopCategories(categoryTrends).map((cat, idx) => (
-                                        <div key={cat.category} className="space-y-2">
-                                            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                                                <span className="text-neutral-400">{cat.category}</span>
-                                                <span className="text-white">₹{cat.total_spent.toLocaleString()}</span>
+                                <div className="space-y-6 relative">
+                                    {getTopCategories(categoryTrends).map((cat, idx) => {
+                                        const isLending = cat.category.toUpperCase().includes("LEND");
+                                        return (
+                                            <div
+                                                key={cat.category}
+                                                className="space-y-2 group cursor-help transition-all"
+                                                onMouseEnter={() => setHoveredCategory(cat.category)}
+                                                onMouseLeave={() => setHoveredCategory(null)}
+                                                onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
+                                            >
+                                                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                                                    <span className={`${isLending ? 'text-blue-400' : 'text-neutral-400'} group-hover:text-white transition-colors`}>
+                                                        {cat.category}
+                                                    </span>
+                                                    <span className="text-white">₹{cat.total_spent.toLocaleString()}</span>
+                                                </div>
+                                                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                                                    <motion.div
+                                                        initial={{ width: 0 }}
+                                                        animate={{ width: `${cat.percent}%` }}
+                                                        className={`h-full ${isLending ? 'bg-blue-500' : 'bg-emerald-500'} opacity-50 group-hover:opacity-100 transition-opacity`}
+                                                        transition={{ duration: 1, delay: idx * 0.1 }}
+                                                    />
+                                                </div>
                                             </div>
-                                            <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                                                <motion.div
-                                                    initial={{ width: 0 }}
-                                                    animate={{ width: `${cat.percent}%` }}
-                                                    className="h-full bg-emerald-500/50"
-                                                    transition={{ duration: 1, delay: idx * 0.1 }}
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
+
+                                    {/* Deep-Dive Tooltip */}
+                                    <AnimatePresence>
+                                        {hoveredCategory && categoryItems[hoveredCategory] && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, scale: 0.95 }}
+                                                style={{
+                                                    position: 'fixed',
+                                                    left: mousePos.x + 20,
+                                                    top: mousePos.y - 40,
+                                                    zIndex: 1000
+                                                }}
+                                                className="bg-neutral-950/90 border border-white/10 p-5 rounded-2xl backdrop-blur-xl shadow-2xl min-w-[220px] pointer-events-none"
+                                            >
+                                                <div className="mb-3 border-b border-white/5 pb-2 flex justify-between items-end">
+                                                    <div>
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-0.5">Category Deep-Dive</p>
+                                                        <p className={`text-xs font-black tracking-tight ${hoveredCategory.toUpperCase().includes("LEND") ? 'text-blue-400' : 'text-white'}`}>
+                                                            {hoveredCategory}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-2.5 mb-4">
+                                                    {categoryItems[hoveredCategory].map((item, i) => (
+                                                        <div key={i} className="flex justify-between items-center gap-4">
+                                                            <span className="text-[10px] font-bold text-neutral-400 truncate max-w-[140px]">
+                                                                {item.description}
+                                                            </span>
+                                                            <span className="text-[10px] font-mono font-black text-neutral-200">
+                                                                ₹{item.amount.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                    {categoryItems[hoveredCategory].length === 0 && (
+                                                        <p className="text-[10px] font-bold text-neutral-600 italic">No detailed records found</p>
+                                                    )}
+                                                </div>
+
+                                                <div className="pt-3 border-t border-white/5 flex justify-between items-center">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">Metric Total</span>
+                                                    <span className={`text-xs font-black ${hoveredCategory.toUpperCase().includes("LEND") ? 'text-blue-400' : 'text-emerald-500'}`}>
+                                                        ₹{(getTopCategories(categoryTrends).find(c => c.category === hoveredCategory)?.total_spent || 0).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             </div>
 

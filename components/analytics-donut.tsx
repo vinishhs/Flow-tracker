@@ -8,7 +8,8 @@ interface ChartData {
     value: number;
     percentage: number;
     color: string;
-    [key: string]: string | number;
+    items: any[];
+    [key: string]: any;
 }
 
 const COLORS = [
@@ -36,11 +37,17 @@ export function AnalyticsDonut({ data }: { data: any[] }) {
 
     const chartData: ChartData[] = data.map((item, index) => {
         const color = SPECIAL_COLORS[item.category] || COLORS[index % COLORS.length];
+        // Sort items by amount descending and take top 5
+        const topItems = [...(item.items || [])]
+            .sort((a, b) => b.amount - a.amount)
+            .slice(0, 5);
+
         return {
             name: item.category,
             value: item.total,
             percentage: Math.round((item.total / total) * 100),
-            color
+            color,
+            items: topItems
         };
     }).sort((a, b) => b.value - a.value);
 
@@ -75,14 +82,44 @@ export function AnalyticsDonut({ data }: { data: any[] }) {
                                         ))}
                                     </Pie>
                                     <Tooltip
+                                        cursor={{ fill: 'transparent' }}
                                         content={({ active, payload }) => {
                                             if (active && payload && payload.length) {
-                                                const data = payload[0].payload;
+                                                const d = payload[0].payload;
+                                                const isLending = d.name.toUpperCase().includes("LEND");
+
                                                 return (
-                                                    <div className="bg-black/90 border border-white/10 p-3 rounded-xl backdrop-blur-md shadow-2xl">
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-1">{data.name}</p>
-                                                        <p className="text-sm font-black text-white">₹{data.value.toLocaleString()}</p>
-                                                        <p className="text-[10px] font-bold text-neutral-400 mt-0.5">{data.percentage}% of total</p>
+                                                    <div className="bg-neutral-950/90 border border-white/10 p-5 rounded-2xl backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] min-w-[200px] animate-in fade-in zoom-in-95 duration-200">
+                                                        <div className="flex justify-between items-center mb-4 border-bottom border-white/5 pb-2">
+                                                            <div>
+                                                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-neutral-500">Category Breakdown</p>
+                                                                <p className={`text-sm font-black tracking-tight ${isLending ? 'text-blue-400' : 'text-white'}`}>{d.name}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-[9px] font-black text-neutral-500 uppercase">{d.percentage}%</p>
+                                                                <p className="text-xs font-mono font-bold text-neutral-300">₹{d.value.toLocaleString()}</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-2.5 mb-4">
+                                                            {d.items.map((item: any, i: number) => (
+                                                                <div key={i} className="flex justify-between items-center gap-4 group">
+                                                                    <span className="text-[10px] font-bold text-neutral-400 truncate max-w-[120px]">
+                                                                        {item.detail || "Misc"}
+                                                                    </span>
+                                                                    <span className={`text-[10px] font-mono font-black ${isLending ? 'text-blue-500/80' : 'text-neutral-200'}`}>
+                                                                        ₹{item.amount.toLocaleString()}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        <div className="pt-3 border-t border-white/5 flex justify-between items-center">
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">Total</span>
+                                                            <span className={`text-xs font-black ${isLending ? 'text-blue-400' : 'text-emerald-500'}`}>
+                                                                ₹{d.value.toLocaleString()}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 );
                                             }

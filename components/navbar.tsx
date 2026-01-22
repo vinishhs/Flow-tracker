@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { ThemeToggle } from "./theme-toggle"
 import { Activity } from "lucide-react"
 
 export function Navbar() {
@@ -13,7 +12,7 @@ export function Navbar() {
             </Link>
 
             <div className="flex items-center gap-4">
-                <ThemeToggle />
+                {/* Theme toggle removed as per request */}
             </div>
         </nav>
     )
