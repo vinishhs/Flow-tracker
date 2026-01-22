@@ -7,6 +7,7 @@ import { AnalyticsDonut } from "@/components/analytics-donut";
 import { DebtLedger } from "@/components/debt-ledger";
 import { HistorySidebar, HistoricalNote } from "@/components/history-sidebar";
 import { TrendsDashboard } from "@/components/trends-dashboard";
+import Antigravity from "@/components/Antigravity";
 import { supabase } from "@/lib/supabase";
 import { Toaster, toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
@@ -302,6 +303,27 @@ export default function Home() {
 
   return (
     <main className={`min-h-screen transition-colors duration-700 text-white selection:bg-emerald-500/30 overflow-x-hidden ${isLedgerOpen ? 'bg-[#141414]' : 'bg-[#0a0a0a]'}`}>
+      {/* Background Intelligence Element */}
+      <div className="fixed inset-0 pointer-events-none z-0 opacity-40">
+        <Antigravity
+          count={200}
+          magnetRadius={15}
+          ringRadius={12}
+          waveSpeed={0.3}
+          waveAmplitude={0.8}
+          particleSize={1.5}
+          lerpSpeed={0.08}
+          color="#10b981"
+          autoAnimate={false}
+          particleVariance={1}
+          rotationSpeed={0.01}
+          depthFactor={1.2}
+          pulseSpeed={2.5}
+          particleShape="capsule"
+          fieldStrength={8}
+        />
+      </div>
+
       {/* Sidebar Overlay */}
       <HistorySidebar
         isOpen={isSidebarOpen}
