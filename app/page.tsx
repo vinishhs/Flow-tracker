@@ -301,7 +301,7 @@ export default function Home() {
   const hasData = result && result.recognized.length > 0;
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white selection:bg-emerald-500/30 overflow-x-hidden">
+    <main className={`min-h-screen transition-colors duration-700 text-white selection:bg-emerald-500/30 overflow-x-hidden ${isLedgerOpen ? 'bg-[#141414]' : 'bg-[#0a0a0a]'}`}>
       {/* Sidebar Overlay */}
       <HistorySidebar
         isOpen={isSidebarOpen}
