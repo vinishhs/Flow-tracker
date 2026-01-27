@@ -334,7 +334,7 @@ export default function Home() {
       />
 
       {/* Floating History Toggle */}
-      <div className="fixed top-8 left-8 z-[90] flex flex-col gap-4">
+      <div className="fixed top-28 left-8 z-[90] flex flex-col gap-6">
         <button
           onClick={() => {
             setIsSidebarOpen(true);
@@ -383,7 +383,7 @@ export default function Home() {
             transition={{ duration: 0.3 }}
           >
             {/* SECTION 1: ENTRY STATE (ABOVE THE FOLD) */}
-            <section className="min-h-screen flex flex-col items-center justify-center p-6 relative">
+            <section className="min-h-screen flex flex-col items-center justify-center p-6 pb-32 relative">
               <div className="w-full max-w-2xl flex flex-col items-center">
                 <header className="text-center mb-8">
                   <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-500 mb-2">Flow Intelligence</h2>
