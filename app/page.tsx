@@ -409,7 +409,7 @@ export default function Home() {
 
               {/* Paired Bouncing Navigation Buttons */}
               {hasData && (
-                <div className="absolute bottom-12 flex items-center gap-12 md:gap-20">
+                <div className="absolute bottom-24 flex items-center gap-12 md:gap-20">
                   <button
                     onClick={scrollToDashboard}
                     className="flex flex-col items-center gap-2 group animate-bounce cursor-pointer transition-all hover:scale-110"
