@@ -66,7 +66,7 @@ export default function Home() {
       if (!name) return;
 
       const current = perPerson.get(name) || { lent: 0, received: 0 };
-      if (tx.category === "LEND TO") current.lent += tx.amount;
+      if (tx.category === "LENT") current.lent += tx.amount;
       if (tx.category === "Money In") current.received += tx.amount;
       perPerson.set(name, current);
     });
@@ -123,7 +123,7 @@ export default function Home() {
     // 1. Identify unique names in LEND TO only
     const debtorNames = new Set<string>();
     result.recognized.forEach(tx => {
-      if (tx.category === "LEND TO" && tx.recipientName) {
+      if (tx.category === "LENT" && tx.recipientName) {
         debtorNames.add(tx.recipientName.toLowerCase().trim());
       }
     });
@@ -142,7 +142,7 @@ export default function Home() {
       if (!nameMap.has(normalized)) nameMap.set(normalized, rawName);
 
       const current = debts.get(normalized) || { lent: 0, received: 0 };
-      if (tx.category === "LEND TO") current.lent += tx.amount;
+      if (tx.category === "LENT") current.lent += tx.amount;
       if (tx.category === "Money In") current.received += tx.amount;
       debts.set(normalized, current);
     });
@@ -206,8 +206,8 @@ export default function Home() {
           txDate = new Date(dateStr);
         }
 
-        // Map LEND TO to 'lending' enum type
-        const typeMapping = tx.category === "LEND TO" ? 'lending' : tx.transaction_type;
+        // Map LENT to 'lending' enum type
+        const typeMapping = tx.category === "LENT" ? 'lending' : tx.transaction_type;
 
         return {
           user_id: userId,
@@ -554,7 +554,7 @@ function TransactionCard({
   hoveredPerson: string | null;
   setHoveredPerson: (name: string | null) => void;
 }) {
-  const isLending = group.category === "LEND TO";
+  const isLending = group.category === "LENT";
   const isOthers = group.category === "OTHERS";
 
   return (

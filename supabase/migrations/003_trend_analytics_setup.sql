@@ -24,13 +24,19 @@ CREATE OR REPLACE VIEW category_spending_trends AS
 SELECT 
     user_id,
     date_trunc('month', transaction_date) AS month,
-    category,
+    CASE 
+        WHEN category ILIKE 'Lent to %' THEN 'LENT'
+        WHEN category = 'LEND TO' THEN 'LENT'
+        ELSE category 
+    END AS category,
     SUM(amount) AS total_spent,
     COUNT(*) AS transaction_count
 FROM transactions
 WHERE transaction_type = 'expense' 
-  AND category != 'LEND TO'
-GROUP BY user_id, month, category
+   OR category = 'LENT'
+   OR category = 'LEND TO'
+   OR category ILIKE 'Lent to %'
+GROUP BY user_id, month, 3
 ORDER BY month DESC, total_spent DESC;
 
 -- 4. Debt Flow Trends (Lending vs. Recovery)
@@ -38,9 +44,9 @@ CREATE OR REPLACE VIEW debt_flow_trends AS
 SELECT 
     user_id,
     date_trunc('month', transaction_date) AS month,
-    SUM(CASE WHEN category = 'LEND TO' THEN amount ELSE 0 END) AS total_lent,
+    SUM(CASE WHEN category IN ('LENT', 'LEND TO') OR category ILIKE 'Lent to %' THEN amount ELSE 0 END) AS total_lent,
     SUM(CASE WHEN category = 'Money In' THEN amount ELSE 0 END) AS total_recovered,
-    COUNT(*) FILTER (WHERE category IN ('LEND TO', 'Money In')) AS transaction_count
+    COUNT(*) FILTER (WHERE category IN ('LENT', 'LEND TO', 'Money In') OR category ILIKE 'Lent to %') AS transaction_count
 FROM transactions
 GROUP BY user_id, month
 ORDER BY month DESC;
@@ -64,7 +70,7 @@ lent_agg AS (
         user_id,
         SUM(amount) AS total_lent
     FROM transactions
-    WHERE category = 'LEND TO'
+    WHERE category IN ('LENT', 'LEND TO') OR category ILIKE 'Lent to %'
     GROUP BY user_id
 )
 SELECT 

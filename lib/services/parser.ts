@@ -46,7 +46,7 @@ export function parseAppleNote(text: string): ProcessResult {
 
       // Check for special keywords FIRST
       if (lowerLine.includes("lent")) {
-        category = "LEND TO";
+        category = "LENT";
         // Extract name after "lent to"
         const detailMatch = line.match(/lent to\s+([^-₹\d]+)/i);
         recipientName = detailMatch ? detailMatch[1].trim() : "";
