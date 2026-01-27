@@ -50,13 +50,46 @@ export function TrendsDashboard({ onBack, currentSessionData }: { onBack: () => 
             try {
                 const userId = '00000000-0000-0000-0000-000000000000'; // Fallback
 
-                const [categoryRes, globalRes] = await Promise.all([
-                    supabase.from('category_spending_trends').select('*').eq('user_id', userId).order('month', { ascending: true }),
-                    supabase.from('global_financial_stats').select('*').eq('user_id', userId).single(),
-                ]);
+                // Fetch RAW transactions to bypass potential SQL View caching/issues
+                const { data: txData, error } = await supabase
+                    .from('transactions')
+                    .select('category, amount, transaction_type')
+                    .eq('user_id', userId)
+                    .neq('transaction_type', 'income'); // Exclude income at DB level
 
-                if (categoryRes.data) setCategoryTrends(categoryRes.data);
-                if (globalRes.data) setGlobalStats(globalRes.data);
+                if (error) throw error;
+
+                if (txData) {
+                    // Client-side Aggregation
+                    const aggregated = new Map<string, number>();
+
+                    txData.forEach(tx => {
+                        let cat = tx.category;
+                        // Normalize LENT
+                        if (
+                            cat.toUpperCase() === 'LENT' ||
+                            cat.toUpperCase() === 'LEND TO' ||
+                            cat.toUpperCase().startsWith('LENT TO')
+                        ) {
+                            cat = 'LENT';
+                        }
+
+                        aggregated.set(cat, (aggregated.get(cat) || 0) + tx.amount);
+                    });
+
+                    // Transform to CategoryTrend format
+                    const trends: CategoryTrend[] = Array.from(aggregated.entries()).map(([category, total_spent]) => ({
+                        month: 'All Time', // flattened for now
+                        category,
+                        total_spent
+                    }));
+
+                    setCategoryTrends(trends);
+                }
+
+                // Global stats (still useful if needed, but we don't strictly use it for the chart)
+                const { data: globalRes } = await supabase.from('global_financial_stats').select('*').eq('user_id', userId).single();
+                if (globalRes) setGlobalStats(globalRes);
 
             } catch (error) {
                 console.error("Error fetching trend data:", error);
