@@ -646,7 +646,9 @@ function StatCard({ label, val, color, highlight }: any) {
     <div className={`p-5 md:p-8 rounded-[2rem] border transition-all hover:scale-[1.02] ${highlight ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5' : 'bg-neutral-900/30 border-neutral-800'
       } text-center`}>
       <div className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em] mb-2">{label}</div>
-      <div className={`text-xl md:text-3xl font-black ${color} tracking-tight`}>₹{Math.abs(val).toLocaleString()}</div>
+      <div className={`text-xl md:text-3xl font-black ${color} tracking-tight`}>
+        {val < 0 ? '-' : ''}₹{Math.abs(val).toLocaleString()}
+      </div>
     </div>
   );
 }
