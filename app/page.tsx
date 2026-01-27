@@ -351,23 +351,23 @@ export default function Home() {
 
         <button
           onClick={() => {
-            if (history.length > 0) {
+            if (history.length > 0 || result) {
               setView(view === 'dashboard' ? 'trends' : 'dashboard');
             }
           }}
-          disabled={history.length === 0}
+          disabled={history.length === 0 && !result}
           className={`p-4 rounded-full transition-all shadow-2xl group relative border ${view === 'trends'
             ? "bg-emerald-500 border-emerald-400 text-white"
-            : history.length === 0
+            : (history.length === 0 && !result)
               ? "bg-neutral-900/50 border-white/5 text-neutral-600 cursor-not-allowed opacity-50"
               : "bg-neutral-900 border-white/5 text-white hover:border-emerald-500/50"
             }`}
-          title={history.length === 0 ? "Save your first record to unlock Trends" : (view === 'dashboard' ? 'Trends' : 'Back to Dashboard')}
+          title={(history.length === 0 && !result) ? "Save your first record or process data to unlock Trends" : (view === 'dashboard' ? 'Trends' : 'Back to Dashboard')}
         >
-          <BarChart3 className={`w-5 h-5 transition-colors ${view === 'dashboard' ? (history.length > 0 ? 'group-hover:text-emerald-500' : 'text-neutral-600') : 'text-white'}`} />
-          {history.length === 0 && (
+          <BarChart3 className={`w-5 h-5 transition-colors ${view === 'dashboard' ? ((history.length > 0 || result) ? 'group-hover:text-emerald-500' : 'text-neutral-600') : 'text-white'}`} />
+          {(history.length === 0 && !result) && (
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-black text-[10px] font-bold text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10">
-              Save your first record to unlock Trends
+              Save record or process data to unlock
             </div>
           )}
         </button>
@@ -529,7 +529,7 @@ export default function Home() {
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.3 }}
           >
-            <TrendsDashboard onBack={() => setView('dashboard')} />
+            <TrendsDashboard onBack={() => setView('dashboard')} currentSessionData={result} />
           </motion.div>
         )}
       </AnimatePresence>

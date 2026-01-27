@@ -1,9 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, BarChart3 } from "lucide-react";
+import { X, BarChart3, Info } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { ProcessResult } from "@/lib/services/parser";
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    Cell
+} from 'recharts';
 
 interface CategoryTrend {
     month: string;
@@ -21,13 +32,17 @@ interface GlobalStats {
     last_updated: string;
 }
 
-export function TrendsDashboard({ onBack }: { onBack: () => void }) {
+interface MergedCategoryData {
+    category: string;
+    saved: number;
+    unsaved: number;
+    total: number;
+}
+
+export function TrendsDashboard({ onBack, currentSessionData }: { onBack: () => void, currentSessionData: ProcessResult | null }) {
     const [categoryTrends, setCategoryTrends] = useState<CategoryTrend[]>([]);
     const [globalStats, setGlobalStats] = useState<GlobalStats | null>(null);
-    const [categoryItems, setCategoryItems] = useState<Record<string, any[]>>({});
     const [isLoading, setIsLoading] = useState(true);
-    const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
     useEffect(() => {
         const fetchData = async () => {
@@ -35,32 +50,13 @@ export function TrendsDashboard({ onBack }: { onBack: () => void }) {
             try {
                 const userId = '00000000-0000-0000-0000-000000000000'; // Fallback
 
-                const [categoryRes, globalRes, transactionsRes] = await Promise.all([
+                const [categoryRes, globalRes] = await Promise.all([
                     supabase.from('category_spending_trends').select('*').eq('user_id', userId).order('month', { ascending: true }),
                     supabase.from('global_financial_stats').select('*').eq('user_id', userId).single(),
-                    supabase.from('transactions').select('category, amount, recipient_name, transaction_type').eq('user_id', userId).order('transaction_date', { ascending: false }).limit(300)
                 ]);
 
                 if (categoryRes.data) setCategoryTrends(categoryRes.data);
                 if (globalRes.data) setGlobalStats(globalRes.data);
-
-                if (transactionsRes.data) {
-                    const grouped: Record<string, any[]> = {};
-                    transactionsRes.data.forEach(tx => {
-                        const isLending = tx.category.toUpperCase().includes("LENT") || tx.category.toUpperCase().includes("LEND");
-                        const catKey = isLending ? "LENT" : tx.category;
-
-                        if (tx.transaction_type !== 'expense' && !isLending) return;
-                        if (!grouped[catKey]) grouped[catKey] = [];
-                        if (grouped[catKey].length < 5) {
-                            grouped[catKey].push({
-                                description: tx.recipient_name || "Misc",
-                                amount: tx.amount
-                            });
-                        }
-                    });
-                    setCategoryItems(grouped);
-                }
 
             } catch (error) {
                 console.error("Error fetching trend data:", error);
@@ -72,6 +68,43 @@ export function TrendsDashboard({ onBack }: { onBack: () => void }) {
         fetchData();
     }, []);
 
+    // --- Core Logic: Merge Saved + Unsaved Data ---
+    const chartData = useMemo(() => {
+        const merged = new Map<string, MergedCategoryData>();
+
+        // 1. Process Saved Data (DB)
+        categoryTrends.forEach(trend => {
+            const isLending = trend.category.toUpperCase().includes("LENT") || trend.category.toUpperCase().includes("LEND");
+            const catKey = isLending ? "LENT" : trend.category;
+
+            const existing = merged.get(catKey) || { category: catKey, saved: 0, unsaved: 0, total: 0 };
+            existing.saved += trend.total_spent;
+            existing.total += trend.total_spent;
+            merged.set(catKey, existing);
+        });
+
+        // 2. Process Current Session Data (Unsaved)
+        if (currentSessionData && currentSessionData.recognized) {
+            currentSessionData.recognized.forEach(tx => {
+                // FILTER: Exclude Income (Money In)
+                if (tx.transaction_type === 'income') return;
+
+                const isLending = tx.category.toUpperCase().includes("LENT") || tx.category.toUpperCase().includes("LEND");
+                const catKey = isLending ? "LENT" : tx.category;
+
+                const existing = merged.get(catKey) || { category: catKey, saved: 0, unsaved: 0, total: 0 };
+                existing.unsaved += tx.amount;
+                existing.total += tx.amount;
+                merged.set(catKey, existing);
+            });
+        }
+
+        // 3. Convert to Array & Sort by Total
+        return Array.from(merged.values())
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 10); // Top 10 Dominant Categories
+    }, [categoryTrends, currentSessionData]);
+
     if (isLoading) {
         return (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xl">
@@ -82,8 +115,6 @@ export function TrendsDashboard({ onBack }: { onBack: () => void }) {
             </div>
         );
     }
-
-    const topCategories = getTopCategories(categoryTrends);
 
     return (
         <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/40 backdrop-blur-2xl">
@@ -111,90 +142,103 @@ export function TrendsDashboard({ onBack }: { onBack: () => void }) {
                                 <span className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-500">Insights Dashboard</span>
                             </div>
                             <h1 className="text-5xl md:text-6xl font-black text-white tracking-tighter mb-2 uppercase">Category Dominance</h1>
-                            <p className="text-sm text-neutral-500 font-bold uppercase tracking-widest">Where your money flows</p>
+                            <p className="text-sm text-neutral-500 font-bold uppercase tracking-widest">Projected Impact Analysis</p>
                         </header>
 
-                        <div className="max-w-2xl mx-auto">
-                            <div className="bg-white/[0.03] border border-white/[0.08] rounded-[2.5rem] p-8 md:p-12 relative">
-                                <div className="space-y-8">
-                                    {topCategories.map((cat, idx) => {
-                                        const isLending = cat.category === "LENT";
-                                        return (
-                                            <div
-                                                key={cat.category}
-                                                className="space-y-3 group cursor-help transition-all"
-                                                onMouseEnter={() => setHoveredCategory(cat.category)}
-                                                onMouseLeave={() => setHoveredCategory(null)}
-                                                onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
-                                            >
-                                                <div className="flex justify-between items-end text-[11px] md:text-xs font-black uppercase tracking-widest">
-                                                    <span className={`${isLending ? 'text-blue-400' : 'text-neutral-400'} group-hover:text-white transition-colors`}>
-                                                        {cat.category}
-                                                    </span>
-                                                    <span className="text-white text-lg md:text-xl tracking-tighter">₹{cat.total_spent.toLocaleString()}</span>
-                                                </div>
-                                                <div className="h-2.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
-                                                    <motion.div
-                                                        initial={{ width: 0 }}
-                                                        animate={{ width: `${cat.percent}%` }}
-                                                        className={`h-full ${isLending ? 'bg-blue-500' : 'bg-emerald-500'} opacity-50 group-hover:opacity-100 transition-opacity`}
-                                                        transition={{ duration: 1, delay: idx * 0.1 }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                        <div className="max-w-3xl mx-auto">
+                            <div className="bg-white/[0.03] border border-white/[0.08] rounded-[2.5rem] p-8 md:p-12 relative min-h-[500px]">
+                                {/* Ghost Pattern Definition */}
+                                <svg style={{ height: 0, width: 0, position: 'absolute' }}>
+                                    <defs>
+                                        <pattern id="stripe-pattern" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+                                            <line x1="0" y="0" x2="0" y2="8" stroke="currentColor" strokeWidth="4" />
+                                        </pattern>
+                                        <pattern id="ghost-emerald" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+                                            <rect width="8" height="8" fill="#10b981" opacity="0.2" />
+                                            <line x1="0" y1="0" x2="0" y2="8" stroke="#10b981" strokeWidth="2" opacity="0.5" />
+                                        </pattern>
+                                        <pattern id="ghost-blue" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+                                            <rect width="8" height="8" fill="#3b82f6" opacity="0.2" />
+                                            <line x1="0" y1="0" x2="0" y2="8" stroke="#3b82f6" strokeWidth="2" opacity="0.5" />
+                                        </pattern>
+                                    </defs>
+                                </svg>
 
-                                {/* Deep-Dive Tooltip */}
-                                <AnimatePresence>
-                                    {hoveredCategory && categoryItems[hoveredCategory] && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                                            exit={{ opacity: 0, scale: 0.95 }}
-                                            style={{
-                                                position: 'fixed',
-                                                left: mousePos.x + 20,
-                                                top: mousePos.y - 40,
-                                                zIndex: 1000
+                                <ResponsiveContainer width="100%" height={500}>
+                                    <BarChart
+                                        layout="vertical"
+                                        data={chartData}
+                                        margin={{ top: 20, right: 30, left: 40, bottom: 5 }}
+                                    >
+                                        <XAxis type="number" hide />
+                                        <YAxis
+                                            dataKey="category"
+                                            type="category"
+                                            width={100}
+                                            tick={{ fill: '#a3a3a3', fontSize: 11, fontWeight: 700, style: { textTransform: 'uppercase' } }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <Tooltip
+                                            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                            content={({ active, payload }) => {
+                                                if (active && payload && payload.length) {
+                                                    const data = payload[0].payload as MergedCategoryData;
+                                                    const isLent = data.category === "LENT";
+                                                    const colorClass = isLent ? "text-blue-400" : "text-emerald-500";
+
+                                                    return (
+                                                        <div className="bg-neutral-950/95 border border-white/10 p-5 rounded-2xl backdrop-blur-xl shadow-2xl min-w-[240px]">
+                                                            <div className="mb-3 border-b border-white/5 pb-2">
+                                                                <p className="text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-0.5">Projected Impact</p>
+                                                                <p className={`text-sm font-black tracking-tight text-white`}>{data.category}</p>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                {data.saved > 0 && (
+                                                                    <div className="flex justify-between text-xs font-bold text-neutral-400">
+                                                                        <span>Saved:</span>
+                                                                        <span>₹{data.saved.toLocaleString()}</span>
+                                                                    </div>
+                                                                )}
+                                                                {data.unsaved > 0 && (
+                                                                    <div className={`flex justify-between text-xs font-bold ${colorClass}`}>
+                                                                        <span>Current Note (Unsaved):</span>
+                                                                        <span>+₹{data.unsaved.toLocaleString()}</span>
+                                                                    </div>
+                                                                )}
+                                                                <div className="pt-2 mt-2 border-t border-white/10 flex justify-between text-sm font-black text-white">
+                                                                    <span>Total:</span>
+                                                                    <span>₹{data.total.toLocaleString()}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
                                             }}
-                                            className="bg-neutral-950/90 border border-white/10 p-5 rounded-2xl backdrop-blur-xl shadow-2xl min-w-[220px] pointer-events-none"
-                                        >
-                                            <div className="mb-3 border-b border-white/5 pb-2 flex justify-between items-end">
-                                                <div>
-                                                    <p className="text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-0.5">Category Deep-Dive</p>
-                                                    <p className={`text-xs font-black tracking-tight ${hoveredCategory === "LENT" ? 'text-blue-400' : 'text-white'}`}>
-                                                        {hoveredCategory}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-2.5 mb-4">
-                                                {categoryItems[hoveredCategory].map((item, i) => (
-                                                    <div key={i} className="flex justify-between items-center gap-4">
-                                                        <span className="text-[10px] font-bold text-neutral-400 truncate max-w-[140px]">
-                                                            {item.description}
-                                                        </span>
-                                                        <span className="text-[10px] font-mono font-black text-neutral-200">
-                                                            ₹{item.amount.toLocaleString()}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                                {categoryItems[hoveredCategory].length === 0 && (
-                                                    <p className="text-[10px] font-bold text-neutral-600 italic">No detailed records found</p>
-                                                )}
-                                            </div>
-
-                                            <div className="pt-3 border-t border-white/5 flex justify-between items-center">
-                                                <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">Metric Total</span>
-                                                <span className={`text-xs font-black ${hoveredCategory === "LENT" ? 'text-blue-400' : 'text-emerald-500'}`}>
-                                                    ₹{(topCategories.find(c => c.category === hoveredCategory)?.total_spent || 0).toLocaleString()}
-                                                </span>
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
+                                        />
+                                        {/* Saved Data Bar (Solid) */}
+                                        <Bar dataKey="saved" stackId="a" radius={[0, 0, 0, 0]} barSize={32}>
+                                            {chartData.map((entry, index) => (
+                                                <Cell key={`cell-saved-${index}`} fill={entry.category === "LENT" ? "#3b82f6" : "#10b981"} />
+                                            ))}
+                                        </Bar>
+                                        {/* Unsaved Data Bar (Ghost Pattern) */}
+                                        <Bar dataKey="unsaved" stackId="a" radius={[0, 4, 4, 0]} barSize={32}>
+                                            {chartData.map((entry, index) => (
+                                                <Cell
+                                                    key={`cell-unsaved-${index}`}
+                                                    fill={entry.category === "LENT" ? "url(#ghost-blue)" : "url(#ghost-emerald)"}
+                                                />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                                {chartData.length === 0 && (
+                                    <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-neutral-600 uppercase tracking-widest">
+                                        No transaction data available
+                                    </div>
+                                )}
                             </div>
 
                             <div className="mt-12 text-center">
@@ -224,23 +268,3 @@ export function TrendsDashboard({ onBack }: { onBack: () => void }) {
     );
 }
 
-function getTopCategories(data: CategoryTrend[]) {
-    const agg = new Map<string, number>();
-    let total = 0;
-    data.forEach(d => {
-        const isLending = d.category.toUpperCase().includes("LENT") || d.category.toUpperCase().includes("LEND");
-        const normalizedCat = isLending ? "LENT" : d.category;
-
-        agg.set(normalizedCat, (agg.get(normalizedCat) || 0) + d.total_spent);
-        total += d.total_spent;
-    });
-
-    return Array.from(agg.entries())
-        .map(([category, total_spent]) => ({
-            category,
-            total_spent,
-            percent: total > 0 ? (total_spent / total) * 100 : 0
-        }))
-        .sort((a, b) => b.total_spent - a.total_spent)
-        .slice(0, 10); // Show more categories since it's full screen
-}
