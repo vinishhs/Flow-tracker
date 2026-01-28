@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { ChevronDown, BarChart3, Link as LinkIcon, Loader2, History as HistoryIcon, BarChart2 } from "lucide-react";
+import { ChevronDown, BarChart3, Link as LinkIcon, Loader2, History as HistoryIcon, BarChart2, LogOut } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { parseAppleNote, ProcessResult, TransactionData } from "@/lib/services/parser";
 import { AnalyticsDonut } from "@/components/analytics-donut";
 import { DebtLedger } from "@/components/debt-ledger";
@@ -26,6 +27,7 @@ interface GroupedTransaction {
 }
 
 export default function Home() {
+  const { user, signOut } = useAuth();
   const [input, setInput] = useState("");
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
@@ -176,10 +178,16 @@ export default function Home() {
   const handleSaveRecords = async () => {
     if (!result || result.recognized.length === 0) return;
 
+    // Check if user is authenticated
+    if (!user) {
+      toast.error("You must be logged in to save records");
+      return;
+    }
+
     setIsSaving(true);
     try {
-      // 1. Fallback user_id (using 'all zeros' UUID as requested)
-      const userId = '00000000-0000-0000-0000-000000000000';
+      // Use authenticated user's ID
+      const userId = user.id;
 
       // 2. Insert master record using settled/adjusted totals
       const { data: note, error: noteError } = await supabase
@@ -334,7 +342,7 @@ export default function Home() {
       />
 
       {/* Floating History Toggle */}
-      <div className="fixed top-28 left-8 z-[90] flex flex-col gap-6">
+      <div className="fixed top-28 left-8 z-[90] flex flex-col gap-4">
         <button
           onClick={() => {
             setIsSidebarOpen(true);
@@ -370,6 +378,14 @@ export default function Home() {
               Save record or process data to unlock
             </div>
           )}
+        </button>
+
+        <button
+          onClick={signOut}
+          className="p-4 bg-neutral-900 border border-white/5 rounded-full hover:border-rose-500/50 transition-all shadow-2xl group relative"
+          title="Logout"
+        >
+          <LogOut className="w-5 h-5 text-white group-hover:text-rose-500 transition-colors" />
         </button>
       </div>
 
