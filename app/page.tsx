@@ -1,654 +1,300 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
-import { ChevronDown, BarChart3, Link as LinkIcon, Loader2, History as HistoryIcon, BarChart2 } from "lucide-react";
-import { parseAppleNote, ProcessResult, TransactionData } from "@/lib/services/parser";
-import { AnalyticsDonut } from "@/components/analytics-donut";
-import { DebtLedger } from "@/components/debt-ledger";
-import { HistorySidebar, HistoricalNote } from "@/components/history-sidebar";
-import { TrendsDashboard } from "@/components/trends-dashboard";
-import Antigravity from "@/components/Antigravity";
-import { supabase } from "@/lib/supabase";
-import { Toaster, toast } from "sonner";
-import { AnimatePresence, motion } from "framer-motion";
+import { useState, useMemo } from "react";
+import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronRight, Copy, Check, Zap, Shield, TrendingUp, Sparkles } from "lucide-react";
+import { parseAppleNote } from "@/lib/services/parser";
 
-interface GroupedTransaction {
-  category: string;
-  total: number;
-  type: 'income' | 'expense';
-  items: Array<{
-    amount: number;
-    date?: string;
-    detail?: string;
-    originalLine?: string;
-    personName?: string;
-  }>;
-}
+export default function LandingPage() {
+    const [demoInput, setDemoInput] = useState("");
+    const [copied, setCopied] = useState(false);
 
-export default function Home() {
-  const [input, setInput] = useState("");
-  const [result, setResult] = useState<ProcessResult | null>(null);
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const [isLedgerOpen, setIsLedgerOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [history, setHistory] = useState<HistoricalNote[]>([]);
-  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
-  const [hasNewSaves, setHasNewSaves] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'trends'>('dashboard');
+    // Demo Logic: Process the text in real-time
+    const demoResult = useMemo(() => {
+        if (!demoInput.trim()) return [];
+        const { recognized } = parseAppleNote(demoInput);
 
-  const dashboardRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<HTMLDivElement>(null);
-
-  const handleProcess = () => {
-    if (!input.trim()) return;
-    const data = parseAppleNote(input);
-    setResult(data);
-    setExpandedCategory(null); // Reset expansion on new process
-  };
-
-  const scrollToDashboard = () => {
-    dashboardRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const scrollToChart = () => {
-    chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-
-  // 1. Reconciliation Logic (Running Balances)
-  const reconciliation = useMemo(() => {
-    if (!result) return { perPerson: new Map<string, { lent: number, received: number }>(), totalSettled: 0 };
-
-    const perPerson = new Map<string, { lent: number, received: number }>();
-
-    result.recognized.forEach(tx => {
-      const name = (tx.recipientName || tx.senderName)?.toLowerCase().trim();
-      if (!name) return;
-
-      const current = perPerson.get(name) || { lent: 0, received: 0 };
-      if (tx.category === "LENT") current.lent += tx.amount;
-      if (tx.category === "Money In") current.received += tx.amount;
-      perPerson.set(name, current);
-    });
-
-    let totalSettled = 0;
-    perPerson.forEach(data => {
-      totalSettled += Math.min(data.lent, data.received);
-    });
-
-    return { perPerson, totalSettled };
-  }, [result]);
-
-  // Nested aggregation: group by category and preserve individual items
-  const groupedTransactions = useMemo(() => {
-    if (!result) return [];
-
-    const categoryMap = new Map<string, GroupedTransaction>();
-
-    result.recognized.forEach(tx => {
-      const personName = (tx.recipientName || tx.senderName)?.toLowerCase().trim();
-      const existing = categoryMap.get(tx.category);
-      const itemData = {
-        amount: tx.amount,
-        date: tx.date,
-        detail: tx.originalDetail,
-        originalLine: tx.originalLine,
-        personName
-      };
-
-      if (existing) {
-        existing.total += tx.amount;
-        existing.items.push(itemData);
-      } else {
-        categoryMap.set(tx.category, {
-          category: tx.category,
-          total: tx.amount,
-          type: tx.transaction_type,
-          items: [itemData]
+        // Aggregate by category
+        const map = new Map<string, { total: number, color: string }>();
+        recognized.forEach(tx => {
+            const existing = map.get(tx.category) || { total: 0, color: tx.category === "LENT" ? "bg-blue-500" : "bg-emerald-500" };
+            existing.total += tx.amount;
+            map.set(tx.category, existing);
         });
-      }
-    });
 
-    return Array.from(categoryMap.values());
-  }, [result]);
+        return Array.from(map.entries()).map(([category, data]) => ({
+            category,
+            ...data
+        })).sort((a, b) => b.total - a.total);
+    }, [demoInput]);
 
-  // Expenses only for the Donut Chart
-  const expenseGroups = useMemo(() => {
-    return groupedTransactions.filter(g => g.type === 'expense');
-  }, [groupedTransactions]);
+    const maxDemoTotal = Math.max(...demoResult.map(d => d.total), 1000);
 
-  const debtData = useMemo(() => {
-    if (!result) return [];
+    const sampleNote = `17 Jan
+Travel ₹200
+Lunch ₹500
+lent to Rahul ₹1000
+Social ₹300`;
 
-    // 1. Identify unique names in LEND TO only
-    const debtorNames = new Set<string>();
-    result.recognized.forEach(tx => {
-      if (tx.category === "LENT" && tx.recipientName) {
-        debtorNames.add(tx.recipientName.toLowerCase().trim());
-      }
-    });
-
-    const debts = new Map<string, { lent: number, received: number }>();
-    const nameMap = new Map<string, string>(); // normalized -> original
-
-    result.recognized.forEach(tx => {
-      const rawName = tx.recipientName || tx.senderName;
-      if (!rawName) return;
-      const normalized = rawName.toLowerCase().trim();
-
-      // Only process if they are in the debtorNames set
-      if (!debtorNames.has(normalized)) return;
-
-      if (!nameMap.has(normalized)) nameMap.set(normalized, rawName);
-
-      const current = debts.get(normalized) || { lent: 0, received: 0 };
-      if (tx.category === "LENT") current.lent += tx.amount;
-      if (tx.category === "Money In") current.received += tx.amount;
-      debts.set(normalized, current);
-    });
-
-    return Array.from(debts.entries()).map(([normalized, data]) => ({
-      name: nameMap.get(normalized) || normalized,
-      total: data.lent,
-      received: data.received,
-      balance: data.lent - data.received
-    })).sort((a, b) => b.balance - a.balance);
-  }, [result]);
-
-  const totals = useMemo(() => {
-    if (!result) return { income: 0, expenses: 0, net: 0, settled: 0 };
-    let inc = 0, exp = 0;
-    result.recognized.forEach(tx => {
-      if (tx.transaction_type === 'income') inc += tx.amount;
-      else exp += tx.amount;
-    });
-
-    const settled = reconciliation.totalSettled;
-    // Adjusted displays
-    return {
-      income: inc - settled,
-      expenses: exp - settled,
-      net: inc - exp,
-      settled
+    const handleCopySample = () => {
+        setDemoInput(sampleNote);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
     };
-  }, [result, reconciliation]);
 
-  const handleSaveRecords = async () => {
-    if (!result || result.recognized.length === 0) return;
-
-    setIsSaving(true);
-    try {
-      // 1. Fallback user_id (using 'all zeros' UUID as requested)
-      const userId = '00000000-0000-0000-0000-000000000000';
-
-      // 2. Insert master record using settled/adjusted totals
-      const { data: note, error: noteError } = await supabase
-        .from('financial_notes')
-        .insert({
-          user_id: userId,
-          raw_text: input,
-          total_in: totals.income,
-          total_out: totals.expenses,
-          net_balance: totals.net,
-          settled_amount: totals.settled
-        })
-        .select('id')
-        .single();
-
-      if (noteError) throw noteError;
-
-      // 3. Prepare individual transactions
-      const transactionsToInsert = result.recognized.map(tx => {
-        // Parse date: "17 Jan" -> "2026-01-17" (using 2026 as current year)
-        let txDate = new Date();
-        if (tx.date) {
-          const dateStr = `${tx.date} 2026`;
-          txDate = new Date(dateStr);
-        }
-
-        // Map LENT to 'lending' enum type
-        const typeMapping = tx.category === "LENT" ? 'lending' : tx.transaction_type;
-
-        return {
-          user_id: userId,
-          note_id: note.id,
-          amount: tx.amount,
-          transaction_type: typeMapping,
-          category: tx.category,
-          sub_category: tx.originalDetail,
-          recipient_name: tx.recipientName,
-          sender_name: tx.senderName,
-          transaction_date: txDate.toISOString(),
-          fingerprint: `${tx.originalLine}-${Date.now()}-${Math.random()}`
-        };
-      });
-
-      // 4. Batch insert detail records
-      const { error: txError } = await supabase
-        .from('transactions')
-        .insert(transactionsToInsert);
-
-      if (txError) throw txError;
-
-      toast.success("Records archived successfully");
-      setInput(""); // Clear input as per requirements
-      setResult(null); // Reset dashboard
-      fetchHistory(); // Refresh history
-      setHasNewSaves(true);
-    } catch (error: any) {
-      console.error("Save failed:", error);
-      toast.error(error.message || "Failed to save records");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const fetchHistory = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('financial_notes')
-        .select('id, created_at, net_balance, raw_text')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (error) throw error;
-      setHistory(data || []);
-    } catch (error) {
-      console.error("Error fetching history:", error);
-    }
-  };
-
-  const loadHistoricalNote = async (noteId: string) => {
-    try {
-      // 1. Fetch the note raw text
-      const note = history.find(n => n.id === noteId);
-      if (note) setInput(note.raw_text);
-
-      // 2. Fetch transactions
-      const { data: dbTransactions, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('note_id', noteId);
-
-      if (error) throw error;
-
-      // 3. Reconstruct TransactionData
-      const recognized: TransactionData[] = dbTransactions.map(tx => ({
-        amount: Number(tx.amount),
-        category: tx.category,
-        transaction_type: tx.transaction_type === 'lending' ? 'expense' : tx.transaction_type,
-        recipientName: tx.recipient_name,
-        senderName: tx.sender_name,
-        originalDetail: tx.sub_category,
-        date: new Date(tx.transaction_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
-        originalLine: tx.fingerprint.split('-')[0], // Approximation
-      }));
-
-      setResult({ recognized, unrecognized: [] });
-      setActiveNoteId(noteId);
-      toast.success("Snapshot loaded");
-    } catch (error: any) {
-      console.error("Error loading note:", error);
-      toast.error("Failed to load snapshot");
-    }
-  };
-
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
-  const [hoveredPerson, setHoveredPerson] = useState<string | null>(null);
-
-  const hasData = result && result.recognized.length > 0;
-
-  return (
-    <main className={`min-h-screen transition-colors duration-700 text-white selection:bg-emerald-500/30 overflow-x-hidden ${isLedgerOpen ? 'bg-[#141414]' : 'bg-[#0a0a0a]'}`}>
-      {/* Background Intelligence Element */}
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-40">
-        <Antigravity
-          count={200}
-          magnetRadius={15}
-          ringRadius={12}
-          waveSpeed={0.3}
-          waveAmplitude={0.8}
-          particleSize={1.5}
-          lerpSpeed={0.08}
-          color="#10b981"
-          autoAnimate={false}
-          particleVariance={1}
-          rotationSpeed={0.01}
-          depthFactor={1.2}
-          pulseSpeed={2.5}
-          particleShape="capsule"
-          fieldStrength={8}
-        />
-      </div>
-
-      {/* Sidebar Overlay */}
-      <HistorySidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        history={history}
-        activeNoteId={activeNoteId}
-        onLoad={loadHistoricalNote}
-      />
-
-      {/* Floating History Toggle */}
-      <div className="fixed top-28 left-8 z-[90] flex flex-col gap-6">
-        <button
-          onClick={() => {
-            setIsSidebarOpen(true);
-            setHasNewSaves(false);
-          }}
-          className="p-4 bg-neutral-900 border border-white/5 rounded-full hover:border-emerald-500/50 transition-all shadow-2xl group relative"
-          title="History"
-        >
-          <HistoryIcon className="w-5 h-5 text-white group-hover:text-emerald-500 transition-colors" />
-          {hasNewSaves && (
-            <span className="absolute top-0 right-0 w-3 h-3 bg-emerald-500 border-4 border-[#0a0a0a] rounded-full animate-pulse" />
-          )}
-        </button>
-
-        <button
-          onClick={() => {
-            if (history.length > 0 || result) {
-              setView(view === 'dashboard' ? 'trends' : 'dashboard');
-            }
-          }}
-          disabled={history.length === 0 && !result}
-          className={`p-4 rounded-full transition-all shadow-2xl group relative border ${view === 'trends'
-            ? "bg-emerald-500 border-emerald-400 text-white"
-            : (history.length === 0 && !result)
-              ? "bg-neutral-900/50 border-white/5 text-neutral-600 cursor-not-allowed opacity-50"
-              : "bg-neutral-900 border-white/5 text-white hover:border-emerald-500/50"
-            }`}
-          title={(history.length === 0 && !result) ? "Save your first record or process data to unlock Trends" : (view === 'dashboard' ? 'Trends' : 'Back to Dashboard')}
-        >
-          <BarChart3 className={`w-5 h-5 transition-colors ${view === 'dashboard' ? ((history.length > 0 || result) ? 'group-hover:text-emerald-500' : 'text-neutral-600') : 'text-white'}`} />
-          {(history.length === 0 && !result) && (
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-black text-[10px] font-bold text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10">
-              Save record or process data to unlock
+    return (
+        <div className="min-h-screen bg-[#050505] text-white selection:bg-emerald-500/30 overflow-x-hidden font-sans">
+            {/* BACKGROUND EFFECTS */}
+            <div className="fixed inset-0 pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/10 blur-[120px] rounded-full" />
+                <div className="absolute bottom-[10%] right-[-5%] w-[30%] h-[30%] bg-blue-500/10 blur-[100px] rounded-full" />
             </div>
-          )}
-        </button>
-      </div>
 
-      <AnimatePresence mode="wait">
-        {view === 'dashboard' ? (
-          <motion.div
-            key="dashboard"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            {/* SECTION 1: ENTRY STATE (ABOVE THE FOLD) */}
-            <section className="min-h-screen flex flex-col items-center justify-center p-6 pb-32 relative">
-              <div className="w-full max-w-2xl flex flex-col items-center">
-                <header className="text-center mb-8">
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-500 mb-2">Flow Intelligence</h2>
-                  <h1 className="text-4xl font-black text-white tracking-tighter">Source Note</h1>
-                </header>
-
-                <div className="w-full relative group">
-                  <textarea
-                    value={input}
-                    onChange={e => setInput(e.target.value)}
-                    placeholder="Paste Apple Note here..."
-                    className="w-full h-64 bg-neutral-900/40 p-8 font-mono text-sm border border-neutral-800 rounded-[2rem] outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 transition-all resize-none shadow-2xl"
-                  />
-                </div>
-
-                <button
-                  onClick={handleProcess}
-                  className="mt-8 px-12 py-4 bg-white text-black rounded-full font-black text-xs uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-xl hover:shadow-white/10"
+            {/* NAVBAR */}
+            <nav className="fixed top-0 left-0 right-0 z-[100] px-6 py-4 flex justify-center">
+                <motion.div
+                    initial={{ y: -20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className="w-full max-w-5xl flex justify-between items-center px-6 py-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl"
                 >
-                  PROCESS DATA
-                </button>
-              </div>
-
-              {/* Paired Bouncing Navigation Buttons */}
-              {hasData && (
-                <div className="absolute bottom-24 flex items-center gap-12 md:gap-20">
-                  <button
-                    onClick={scrollToDashboard}
-                    className="flex flex-col items-center gap-2 group animate-bounce cursor-pointer transition-all hover:scale-110"
-                  >
-                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity">See Analysis</span>
-                    <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-full group-hover:border-emerald-500/50 transition-colors shadow-2xl">
-                      <ChevronDown className="w-6 h-6 text-white" />
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-black italic text-black text-xl">F</div>
+                        <span className="text-xl font-black tracking-tighter uppercase text-white">Flow</span>
                     </div>
-                  </button>
 
-                  <button
-                    onClick={scrollToChart}
-                    className="flex flex-col items-center gap-2 group animate-bounce cursor-pointer [animation-delay:200ms] transition-all hover:scale-110"
-                  >
-                    <span className="text-[9px] font-black uppercase tracking-widest text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">Quick Insights</span>
-                    <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-full group-hover:border-blue-500/50 transition-colors shadow-2xl">
-                      <BarChart3 className="w-6 h-6 text-white" />
-                    </div>
-                  </button>
-                </div>
-              )}
-            </section>
-
-            {/* SECTION 2: DASHBOARD STATE (BELOW THE FOLD) */}
-            {hasData && (
-              <section
-                ref={dashboardRef}
-                className="min-h-screen border-t border-neutral-900 pt-12 pb-32 px-6 relative"
-              >
-                <div className="sticky top-0 z-50 py-4 -mt-12 mb-10 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/5">
-                  <div className="max-w-3xl mx-auto flex justify-between items-center px-4 md:px-0">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">Note Overview</span>
                     <div className="flex items-center gap-6">
-                      {debtData.length > 0 && (
-                        <button
-                          onClick={() => setIsLedgerOpen(true)}
-                          className="text-[10px] font-black uppercase tracking-widest text-blue-400 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full hover:bg-blue-500/20 transition-all shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                        <Link href="/dashboard" className="text-sm font-bold text-neutral-400 hover:text-white transition-colors">
+                            Explore
+                        </Link>
+                        <Link
+                            href="/dashboard"
+                            className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
                         >
-                          Who Owes Me?
-                        </button>
-                      )}
-                      <div className="flex items-center gap-4 text-[10px] font-bold text-neutral-400">
-                        <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /> IN</span>
-                        <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500" /> OUT</span>
-                      </div>
+                            Sign In
+                        </Link>
                     </div>
-                  </div>
-                </div>
+                </motion.div>
+            </nav>
 
-                <div className="max-w-3xl mx-auto space-y-16">
-                  <div className="grid grid-cols-3 gap-4 md:gap-6">
-                    <StatCard label="Total In" val={totals.income} color="text-emerald-500" />
-                    <StatCard label="Total Out" val={totals.expenses} color="text-rose-500" />
-                    <StatCard label="Net Balance" val={totals.net} color="text-white" highlight />
-                  </div>
-
-                  <div className="space-y-6">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-600 pl-4 border-l-2 border-neutral-800">Categories</h3>
-                    <div className="space-y-3">
-                      {groupedTransactions.map((group) => (
-                        <TransactionCard
-                          key={group.category}
-                          group={group}
-                          isExpanded={expandedCategory === group.category}
-                          onToggle={() => setExpandedCategory(expandedCategory === group.category ? null : group.category)}
-                          reconciliation={reconciliation}
-                          hoveredPerson={hoveredPerson}
-                          setHoveredPerson={setHoveredPerson}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div ref={chartRef} className="pt-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-600 pl-4 border-l-2 border-neutral-800 mb-8">Visual Breakdown</h3>
-                    <AnalyticsDonut data={expenseGroups} />
-                  </div>
-
-                  <div className="pt-8 text-center pb-20">
-                    <button
-                      onClick={handleSaveRecords}
-                      disabled={isSaving || !hasData}
-                      className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:scale-100 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl shadow-emerald-500/10 transition-all hover:scale-[1.01] active:scale-[0.99] group"
+            {/* HERO SECTION */}
+            <main className="max-w-5xl mx-auto px-6 pt-40 pb-20 relative z-10">
+                <div className="text-center mb-20">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-6"
                     >
-                      <span className="flex items-center justify-center gap-2">
-                        {isSaving ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" /> SAVING...
-                          </>
-                        ) : (
-                          <>
-                            SAVE RECORDS <BarChart3 className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                          </>
-                        )}
-                      </span>
-                    </button>
-                  </div>
-                  <Toaster position="bottom-right" theme="dark" />
+                        <Sparkles className="w-3 h-3" /> The World's Minimalist Tracker
+                    </motion.div>
+
+                    <motion.h1
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-[1.1] text-white"
+                    >
+                        Master Your Money.<br />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-600">No Spreadsheets Required.</span>
+                    </motion.h1>
+
+                    <motion.p
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-lg md:text-xl text-neutral-400 max-w-2xl mx-auto mb-10 leading-relaxed"
+                    >
+                        Paste your transaction notes. We handle the math, categorization, and projections instantly with Flow Intelligence.
+                    </motion.p>
+
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="flex flex-col md:flex-row items-center justify-center gap-4"
+                    >
+                        <Link
+                            href="/dashboard"
+                            className="px-10 py-5 bg-emerald-500 hover:bg-emerald-400 text-black rounded-[2rem] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-3"
+                        >
+                            Get Started for Free <ChevronRight className="w-4 h-4" />
+                        </Link>
+                    </motion.div>
                 </div>
 
-                <DebtLedger
-                  data={debtData}
-                  isOpen={isLedgerOpen}
-                  onClose={() => setIsLedgerOpen(false)}
-                />
-              </section>
-            )}
-
-            {/* Dashboard Footer / Spacer */}
-            <footer className="h-32" />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="trends"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            <TrendsDashboard onBack={() => setView('dashboard')} currentSessionData={result} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </main>
-  );
-}
-
-// --- Transaction Card Component ---
-
-function TransactionCard({
-  group,
-  isExpanded,
-  onToggle,
-  reconciliation,
-  hoveredPerson,
-  setHoveredPerson
-}: {
-  group: GroupedTransaction;
-  isExpanded: boolean;
-  onToggle: () => void;
-  reconciliation: any;
-  hoveredPerson: string | null;
-  setHoveredPerson: (name: string | null) => void;
-}) {
-  const isLending = group.category === "LENT";
-  const isOthers = group.category === "OTHERS";
-
-  return (
-    <div
-      className={`group rounded-[1.5rem] border transition-all duration-500 overflow-hidden ${isExpanded
-        ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5'
-        : 'bg-neutral-900/20 border-neutral-800 hover:bg-neutral-900/40 hover:border-neutral-700'
-        } ${isLending ? 'border-l-4 border-l-blue-500' :
-          isOthers ? 'border-l-4 border-l-amber-500' : ''
-        }`}
-    >
-      {/* Header View */}
-      <div
-        onClick={onToggle}
-        className="p-5 md:p-6 cursor-pointer flex justify-between items-center"
-      >
-        <div className="flex-1 flex items-center gap-4">
-          <div className={`p-2.5 rounded-xl bg-[#0a0a0a] border border-neutral-800 group-hover:border-neutral-600 transition-colors`}>
-            <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform duration-500 ${isExpanded ? 'rotate-180' : ''}`} />
-          </div>
-          <h3 className="font-bold text-white text-lg md:text-xl leading-tight uppercase tracking-tight">
-            {group.category}
-          </h3>
-        </div>
-        <div className={`font-mono font-black text-xl md:text-2xl ${group.type === 'income' ? 'text-emerald-500' : 'text-white'
-          }`}>
-          {group.type === 'income' ? '+' : ''}₹{group.total.toLocaleString()}
-        </div>
-      </div>
-
-      {/* Expanded Drill-down (Accordion) */}
-      {isExpanded && (
-        <div className="bg-black/60 border-t border-white/5 px-5 md:px-6 pb-6 pt-3 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="space-y-2">
-            {group.items.map((item, idx) => {
-              const personName = item.personName;
-              const recon = personName ? reconciliation.perPerson.get(personName) : null;
-              const isSettled = recon && Math.min(recon.lent, recon.received) > 0;
-              const isFullySettled = recon && recon.lent === recon.received;
-              const isHighlighted = personName && hoveredPerson === personName;
-
-              return (
-                <div
-                  key={idx}
-                  onMouseEnter={() => personName && setHoveredPerson(personName)}
-                  onMouseLeave={() => setHoveredPerson(null)}
-                  className={`flex justify-between items-center py-[7px] px-[15px] rounded-xl border transition-all duration-300 ${isHighlighted ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-neutral-900/40 border-white/5 hover:border-white/10 hover:bg-neutral-800/40'}`}
+                {/* DEMO LITE SECTION */}
+                <motion.section
+                    initial={{ opacity: 0, y: 40 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.8 }}
+                    className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-40"
                 >
-                  <div className="flex-1">
-                    <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-5">
-                      <div className="flex items-center gap-2">
-                        {item.date && (
-                          <span className="text-[9px] font-black font-mono text-neutral-500 uppercase tracking-widest bg-black rounded-full px-2.5 py-0.5 w-fit border border-white/5">
-                            {item.date}
-                          </span>
-                        )}
-                        {isSettled && (
-                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                            <LinkIcon className="w-2.5 h-2.5 text-emerald-500" />
-                            <span className="text-[8px] font-black uppercase tracking-tighter text-emerald-500">
-                              {isFullySettled ? 'Settled' : 'Partial'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      {item.detail && (
-                        <span className="text-xs text-neutral-300 font-bold tracking-tight">
-                          {item.detail}
-                        </span>
-                      )}
+                    {/* Left: Editor */}
+                    <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 backdrop-blur-sm relative group overflow-hidden">
+                        <div className="absolute top-0 right-0 p-6">
+                            <button
+                                onClick={handleCopySample}
+                                className="flex items-center gap-2 px-4 py-2 bg-neutral-900 border border-white/10 rounded-xl hover:border-emerald-500/50 transition-all text-[10px] font-bold uppercase tracking-widest text-white"
+                            >
+                                {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                                {copied ? "Pasted!" : "Paste Sample"}
+                            </button>
+                        </div>
+
+                        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-neutral-500 mb-6 flex items-center gap-2">
+                            <Zap className="w-3 h-3" /> Interactive Input
+                        </h3>
+
+                        <textarea
+                            value={demoInput}
+                            onChange={(e) => setDemoInput(e.target.value)}
+                            placeholder="Paste sample notes like: ₹500 for lunch..."
+                            className="w-full h-64 bg-transparent font-mono text-sm outline-none resize-none placeholder:text-neutral-700 text-white"
+                        />
+
+                        <div className="absolute bottom-6 left-8 right-8 h-px bg-white/5" />
+                        <div className="mt-8 flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Parser Active</span>
+                            <div className="flex gap-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse [animation-delay:200ms]" />
+                            </div>
+                        </div>
                     </div>
-                  </div>
-                  <div className={`font-mono text-sm font-black ${group.type === 'income' ? 'text-emerald-400' : 'text-neutral-200'
-                    }`}>
-                    {group.type === 'income' ? '+' : ''}₹{item.amount.toLocaleString()}
-                  </div>
+
+                    {/* Right: Visualization */}
+                    <div className="bg-neutral-900/50 border border-white/5 rounded-[2.5rem] p-8 flex flex-col justify-center relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-neutral-500 mb-10 flex items-center gap-2">
+                            <TrendingUp className="w-3 h-3" /> Ghost Impact Logic
+                        </h3>
+
+                        <div className="space-y-8 relative z-10">
+                            {demoResult.length === 0 ? (
+                                <div className="h-64 flex flex-col items-center justify-center text-center space-y-4">
+                                    <div className="p-4 bg-neutral-800 rounded-full border border-white/5">
+                                        <Zap className="w-6 h-6 text-neutral-600" />
+                                    </div>
+                                    <p className="text-sm text-neutral-600 font-bold uppercase tracking-widest">
+                                        Start typing to see<br />instant categorization
+                                    </p>
+                                </div>
+                            ) : (
+                                <AnimatePresence mode="popLayout">
+                                    {demoResult.map((res) => (
+                                        <motion.div
+                                            key={res.category}
+                                            layout
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            exit={{ opacity: 0, scale: 0.9 }}
+                                            className="space-y-3"
+                                        >
+                                            <div className="flex justify-between items-end">
+                                                <span className="text-xs font-black uppercase tracking-widest text-white">{res.category}</span>
+                                                <span className="text-lg font-black font-mono text-white">₹{res.total.toLocaleString()}</span>
+                                            </div>
+                                            <div className="h-4 bg-neutral-800 rounded-full overflow-hidden">
+                                                <motion.div
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${(res.total / maxDemoTotal) * 100}%` }}
+                                                    className={`h-full ${res.color} shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all`}
+                                                />
+                                            </div>
+                                        </motion.div>
+                                    ))}
+                                </AnimatePresence>
+                            )}
+                        </div>
+
+                        {demoResult.length > 0 && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="mt-12 pt-8 border-t border-white/5 flex items-center gap-4"
+                            >
+                                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                                    <Shield className="w-5 h-5 text-emerald-500" />
+                                </div>
+                                <p className="text-[10px] font-bold text-neutral-500 uppercase leading-relaxed tracking-widest">
+                                    Intelligence verified. All your<br />spend impact is projected.
+                                </p>
+                            </motion.div>
+                        )}
+                    </div>
+                </motion.section>
+
+                {/* FEATURE GRID */}
+                <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-40">
+                    <FeatureCard
+                        icon={<Zap className="w-6 h-6 text-emerald-500" />}
+                        title="The Parser"
+                        desc="Type like you text. No forms, no friction. Just paste your notes."
+                        delay={0.4}
+                    />
+                    <FeatureCard
+                        icon={<TrendingUp className="w-6 h-6 text-blue-500" />}
+                        title="Ghost Projections"
+                        desc="See the impact of your spend before you commit to the archive."
+                        delay={0.5}
+                    />
+                    <FeatureCard
+                        icon={<Shield className="w-6 h-6 text-emerald-500" />}
+                        title="Debt Recovery"
+                        desc="Smart tracking for what you've lent and what's owed to you."
+                        delay={0.6}
+                    />
+                </section>
+
+                {/* FOOTER CTA */}
+                <motion.section
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    viewport={{ once: true }}
+                    className="text-center bg-gradient-to-b from-emerald-500/10 to-transparent p-20 rounded-[4rem] border border-emerald-500/10"
+                >
+                    <h2 className="text-3xl md:text-5xl font-black tracking-tight mb-8 text-white">Ready to take control?</h2>
+                    <Link
+                        href="/dashboard"
+                        className="inline-block px-12 py-5 bg-white text-black rounded-full font-black text-sm uppercase tracking-[0.4em] hover:scale-110 active:scale-95 transition-all shadow-white/10 shadow-2xl"
+                    >
+                        ENTER THE FLOW
+                    </Link>
+                </motion.section>
+            </main>
+
+            {/* FOOTER */}
+            <footer className="border-t border-white/5 py-12 px-6">
+                <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 bg-emerald-500 rounded flex items-center justify-center font-black italic text-black text-sm">F</div>
+                        <span className="text-sm font-black uppercase tracking-tighter text-white">Flow</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em]">
+                        © 2026 FLOW INTELLIGENCE SYSTEMS. ALL RIGHTS RESERVED.
+                    </p>
                 </div>
-              );
-            })}
-          </div>
+            </footer>
         </div>
-      )}
-    </div>
-  );
+    );
 }
 
-function StatCard({ label, val, color, highlight }: any) {
-  return (
-    <div className={`p-5 md:p-8 rounded-[2rem] border transition-all hover:scale-[1.02] ${highlight ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5' : 'bg-neutral-900/30 border-neutral-800'
-      } text-center`}>
-      <div className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em] mb-2">{label}</div>
-      <div className={`text-xl md:text-3xl font-black ${color} tracking-tight`}>
-        {val < 0 ? '-' : ''}₹{Math.abs(val).toLocaleString()}
-      </div>
-    </div>
-  );
+function FeatureCard({ icon, title, desc, delay }: any) {
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay, duration: 0.5 }}
+            className="p-8 bg-neutral-900/30 border border-white/5 rounded-[2rem] hover:border-emerald-500/20 transition-all group"
+        >
+            <div className="mb-6 p-3 bg-neutral-900 rounded-2xl w-fit border border-white/10 group-hover:border-emerald-500/30 transition-all">
+                {icon}
+            </div>
+            <h3 className="text-xl font-black mb-3 text-white">{title}</h3>
+            <p className="text-sm text-neutral-400 leading-relaxed font-medium">{desc}</p>
+        </motion.div>
+    );
 }
