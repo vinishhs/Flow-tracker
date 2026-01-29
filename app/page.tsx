@@ -52,11 +52,11 @@ Social ₹300`;
             </div>
 
             {/* NAVBAR */}
-            <nav className="fixed top-0 left-0 right-0 z-[100] px-6 py-4 flex justify-center">
+            <nav className="fixed top-0 left-0 right-0 z-[100] px-6 py-6 transition-all duration-300">
                 <motion.div
                     initial={{ y: -20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    className="w-full max-w-5xl flex justify-between items-center px-6 py-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl"
+                    className="w-full flex justify-between items-center"
                 >
                     <div className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-black italic text-black text-xl">F</div>
@@ -115,9 +115,9 @@ Social ₹300`;
                     >
                         <Link
                             href="/dashboard"
-                            className="px-10 py-5 bg-emerald-500 hover:bg-emerald-400 text-black rounded-[2rem] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-3"
+                            className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-black rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
                         >
-                            Get Started for Free <ChevronRight className="w-4 h-4" />
+                            Get Started <ChevronRight className="w-4 h-4" />
                         </Link>
                     </motion.div>
                 </div>
@@ -258,7 +258,7 @@ Social ₹300`;
                     <h2 className="text-2xl md:text-4xl font-black tracking-tight mb-8 text-white">Ready to take control?</h2>
                     <Link
                         href="/dashboard"
-                        className="inline-block px-12 py-5 bg-white text-black rounded-full font-black text-sm uppercase tracking-[0.4em] hover:scale-110 active:scale-95 transition-all shadow-white/10 shadow-2xl"
+                        className="inline-block px-8 py-4 bg-white text-black rounded-full font-black text-xs uppercase tracking-[0.4em] hover:scale-110 active:scale-95 transition-all shadow-white/10 shadow-2xl"
                     >
                         ENTER THE FLOW
                     </Link>
