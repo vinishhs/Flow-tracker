@@ -92,7 +92,7 @@ Social ₹300`;
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-[1.1] text-white"
+                        className="text-4xl md:text-6xl font-black tracking-tight mb-8 leading-[1.1] text-white"
                     >
                         Master Your Money.<br />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-600">No Spreadsheets Required.</span>
@@ -102,7 +102,7 @@ Social ₹300`;
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2 }}
-                        className="text-lg md:text-xl text-neutral-400 max-w-2xl mx-auto mb-10 leading-relaxed"
+                        className="text-base md:text-lg text-neutral-400 max-w-2xl mx-auto mb-10 leading-relaxed"
                     >
                         Paste your transaction notes. We handle the math, categorization, and projections instantly with Flow Intelligence.
                     </motion.p>
@@ -255,7 +255,7 @@ Social ₹300`;
                     viewport={{ once: true }}
                     className="text-center bg-gradient-to-b from-emerald-500/10 to-transparent p-20 rounded-[4rem] border border-emerald-500/10"
                 >
-                    <h2 className="text-3xl md:text-5xl font-black tracking-tight mb-8 text-white">Ready to take control?</h2>
+                    <h2 className="text-2xl md:text-4xl font-black tracking-tight mb-8 text-white">Ready to take control?</h2>
                     <Link
                         href="/dashboard"
                         className="inline-block px-12 py-5 bg-white text-black rounded-full font-black text-sm uppercase tracking-[0.4em] hover:scale-110 active:scale-95 transition-all shadow-white/10 shadow-2xl"
@@ -293,7 +293,7 @@ function FeatureCard({ icon, title, desc, delay }: any) {
             <div className="mb-6 p-3 bg-neutral-900 rounded-2xl w-fit border border-white/10 group-hover:border-emerald-500/30 transition-all">
                 {icon}
             </div>
-            <h3 className="text-xl font-black mb-3 text-white">{title}</h3>
+            <h3 className="text-lg font-black mb-3 text-white">{title}</h3>
             <p className="text-sm text-neutral-400 leading-relaxed font-medium">{desc}</p>
         </motion.div>
     );
