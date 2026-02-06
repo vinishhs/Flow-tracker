@@ -33,13 +33,13 @@ export function HistorySidebar({ isOpen, onClose, history, activeNoteId, onLoad,
                         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
                     />
 
-                    {/* Sidebar */}
+                    {/* Sidebar Card */}
                     <motion.div
-                        initial={{ x: "-100%" }}
-                        animate={{ x: 0 }}
-                        exit={{ x: "-100%" }}
-                        transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed left-0 top-0 bottom-0 w-full max-w-[350px] bg-[#0a0a0a] border-r border-white/5 z-[101] shadow-2xl flex flex-col"
+                        initial={{ x: "-110%", opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: "-110%", opacity: 0 }}
+                        transition={{ type: "spring", damping: 28, stiffness: 220 }}
+                        className="fixed left-6 top-6 bottom-6 w-full max-w-[320px] bg-neutral-900/80 border border-white/10 rounded-[2.5rem] backdrop-blur-3xl z-[101] shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden"
                     >
                         <header className="p-6 border-b border-white/5 flex items-center justify-between">
                             <div className="flex items-center gap-3">
