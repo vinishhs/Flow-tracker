@@ -40,6 +40,7 @@ export default function Home() {
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [hasNewSaves, setHasNewSaves] = useState(false);
   const [view, setView] = useState<'dashboard' | 'trends'>('dashboard');
+  const [savedMonthlyTotals, setSavedMonthlyTotals] = useState<Record<string, number>>({});
 
   const dashboardRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -236,6 +237,7 @@ export default function Home() {
       setInput(""); // Clear input as per requirements
       setResult(null); // Reset dashboard
       fetchHistory(); // Refresh history
+      fetchMonthlyTotals(); // Refresh monthly totals
       setHasNewSaves(true);
     } catch (error: any) {
       console.error("Save failed:", error);
@@ -297,6 +299,42 @@ export default function Home() {
     }
   };
 
+  const fetchMonthlyTotals = async () => {
+    if (!user?.id) return;
+
+    try {
+      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const endOfMonth = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('category, amount')
+        .eq('user_id', user.id)
+        .gte('created_at', startOfMonth)
+        .lte('created_at', endOfMonth)
+        .neq('transaction_type', 'income');
+
+      if (error) throw error;
+
+      const grouped = (data || []).reduce((acc, curr) => {
+        let cat = curr.category;
+        // Normalize LENT to match dashboard logic
+        if (
+          cat.toUpperCase().includes('LENT') ||
+          cat.toUpperCase().includes('LEND')
+        ) {
+          cat = 'LENT';
+        }
+        acc[cat] = (acc[cat] || 0) + Number(curr.amount);
+        return acc;
+      }, {} as Record<string, number>);
+
+      setSavedMonthlyTotals(grouped);
+    } catch (error) {
+      console.error("Error fetching monthly totals:", error);
+    }
+  };
+
   const fetchHistory = async () => {
     if (!user?.id) return;
     try {
@@ -352,7 +390,8 @@ export default function Home() {
 
   useEffect(() => {
     fetchHistory();
-  }, []);
+    fetchMonthlyTotals();
+  }, [user?.id]);
 
   const [hoveredPerson, setHoveredPerson] = useState<string | null>(null);
 
@@ -588,7 +627,11 @@ export default function Home() {
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.3 }}
           >
-            <TrendsDashboard onBack={() => setView('dashboard')} currentSessionData={result} />
+            <TrendsDashboard
+              onBack={() => setView('dashboard')}
+              currentSessionData={result}
+              savedMonthlyTotals={savedMonthlyTotals}
+            />
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, BarChart3, Info } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -16,21 +16,6 @@ import {
     Cell
 } from 'recharts';
 
-interface CategoryTrend {
-    month: string;
-    category: string;
-    total_spent: number;
-}
-
-interface GlobalStats {
-    total_income: number;
-    total_expenses: number;
-    total_settled: number;
-    total_lent: number;
-    net_savings: number;
-    tracking_since: string;
-    last_updated: string;
-}
 
 interface MergedCategoryData {
     category: string;
@@ -39,81 +24,27 @@ interface MergedCategoryData {
     total: number;
 }
 
-export function TrendsDashboard({ onBack, currentSessionData }: { onBack: () => void, currentSessionData: ProcessResult | null }) {
-    const [categoryTrends, setCategoryTrends] = useState<CategoryTrend[]>([]);
-    const [globalStats, setGlobalStats] = useState<GlobalStats | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const supabase = createClient();
-
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                const userId = '00000000-0000-0000-0000-000000000000'; // Fallback
-
-                // Fetch RAW transactions to bypass potential SQL View caching/issues
-                const { data: txData, error } = await supabase
-                    .from('transactions')
-                    .select('category, amount, transaction_type')
-                    .eq('user_id', userId)
-                    .neq('transaction_type', 'income'); // Exclude income at DB level
-
-                if (error) throw error;
-
-                if (txData) {
-                    // Client-side Aggregation
-                    const aggregated = new Map<string, number>();
-
-                    txData.forEach(tx => {
-                        let cat = tx.category;
-                        // Normalize LENT
-                        if (
-                            cat.toUpperCase() === 'LENT' ||
-                            cat.toUpperCase() === 'LEND TO' ||
-                            cat.toUpperCase().startsWith('LENT TO')
-                        ) {
-                            cat = 'LENT';
-                        }
-
-                        aggregated.set(cat, (aggregated.get(cat) || 0) + tx.amount);
-                    });
-
-                    // Transform to CategoryTrend format
-                    const trends: CategoryTrend[] = Array.from(aggregated.entries()).map(([category, total_spent]) => ({
-                        month: 'All Time', // flattened for now
-                        category,
-                        total_spent
-                    }));
-
-                    setCategoryTrends(trends);
-                }
-
-                // Global stats (still useful if needed, but we don't strictly use it for the chart)
-                const { data: globalRes } = await supabase.from('global_financial_stats').select('*').eq('user_id', userId).single();
-                if (globalRes) setGlobalStats(globalRes);
-
-            } catch (error) {
-                console.error("Error fetching trend data:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchData();
-    }, []);
-
+export function TrendsDashboard({
+    onBack,
+    currentSessionData,
+    savedMonthlyTotals
+}: {
+    onBack: () => void,
+    currentSessionData: ProcessResult | null,
+    savedMonthlyTotals: Record<string, number>
+}) {
     // --- Core Logic: Merge Saved + Unsaved Data ---
     const chartData = useMemo(() => {
         const merged = new Map<string, MergedCategoryData>();
 
-        // 1. Process Saved Data (DB)
-        categoryTrends.forEach(trend => {
-            const isLending = trend.category.toUpperCase().includes("LENT") || trend.category.toUpperCase().includes("LEND");
-            const catKey = isLending ? "LENT" : trend.category;
+        // 1. Process Saved Data (from props - pre-aggregated monthly totals)
+        Object.entries(savedMonthlyTotals).forEach(([category, amount]) => {
+            const isLending = category.toUpperCase().includes("LENT") || category.toUpperCase().includes("LEND");
+            const catKey = isLending ? "LENT" : category;
 
             const existing = merged.get(catKey) || { category: catKey, saved: 0, unsaved: 0, total: 0 };
-            existing.saved += trend.total_spent;
-            existing.total += trend.total_spent;
+            existing.saved += amount;
+            existing.total += amount;
             merged.set(catKey, existing);
         });
 
@@ -137,18 +68,7 @@ export function TrendsDashboard({ onBack, currentSessionData }: { onBack: () => 
         return Array.from(merged.values())
             .sort((a, b) => b.total - a.total)
             .slice(0, 10); // Top 10 Dominant Categories
-    }, [categoryTrends, currentSessionData]);
-
-    if (isLoading) {
-        return (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xl">
-                <div className="flex flex-col items-center">
-                    <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4" />
-                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-400">Syncing Intelligence...</p>
-                </div>
-            </div>
-        );
-    }
+    }, [savedMonthlyTotals, currentSessionData]);
 
     return (
         <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/40 backdrop-blur-2xl">
