@@ -1,9 +1,13 @@
 "use client";
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useAuth } from "@/context/AuthContext"
+import { LogOut } from "lucide-react"
 
 export function Navbar() {
     const pathname = usePathname();
+    const { user, signOut, loading } = useAuth();
+
     if (pathname === "/") return null;
 
     return (
@@ -13,8 +17,22 @@ export function Navbar() {
                 <span>Flow</span>
             </Link>
 
-            <div className="flex items-center gap-4">
-                {/* Theme toggle removed as per request */}
+            <div className="flex items-center gap-6">
+                {!loading && user && (
+                    <div className="flex items-center gap-4">
+                        <span className="text-xs font-bold text-neutral-500 lowercase tracking-tight hidden md:block">
+                            {user.email}
+                        </span>
+                        <button
+                            onClick={signOut}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/5 bg-white/5 hover:bg-rose-500/10 hover:border-rose-500/20 hover:text-rose-400 transition-all text-[10px] font-black uppercase tracking-widest text-neutral-400"
+                            title="Sign Out"
+                        >
+                            <LogOut className="w-3 h-3" />
+                            <span className="hidden sm:inline">Logout</span>
+                        </button>
+                    </div>
+                )}
             </div>
         </nav>
     )

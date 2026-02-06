@@ -3,17 +3,20 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 type AuthContextType = {
     user: User | null;
     session: Session | null;
     loading: boolean;
+    signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
     user: null,
     session: null,
     loading: true,
+    signOut: async () => { },
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -21,6 +24,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
     const supabase = createClient();
+    const router = useRouter();
 
     useEffect(() => {
         const setData = async () => {
@@ -46,8 +50,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         };
     }, []);
 
+    const signOut = async () => {
+        await supabase.auth.signOut();
+        router.refresh();
+        router.push("/login");
+    };
+
     return (
-        <AuthContext.Provider value={{ user, session, loading }}>
+        <AuthContext.Provider value={{ user, session, loading, signOut }}>
             {loading ? (
                 <div className="min-h-screen bg-[#050505] flex items-center justify-center">
                     <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
