@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { ChevronDown, BarChart3, Link as LinkIcon, Loader2, History as HistoryIcon, BarChart2 } from "lucide-react";
+import { ChevronDown, BarChart3, Link as LinkIcon, Loader2, History as HistoryIcon, BarChart2, Trash2 } from "lucide-react";
 import { parseAppleNote, ProcessResult, TransactionData } from "@/lib/services/parser";
 import { AnalyticsDonut } from "@/components/analytics-donut";
 import { DebtLedger } from "@/components/debt-ledger";
@@ -23,6 +23,7 @@ interface GroupedTransaction {
     detail?: string;
     originalLine?: string;
     personName?: string;
+    id?: string;
   }>;
 }
 
@@ -96,7 +97,8 @@ export default function Home() {
         date: tx.date,
         detail: tx.originalDetail,
         originalLine: tx.originalLine,
-        personName
+        personName,
+        id: tx.id
       };
 
       if (existing) {
@@ -243,6 +245,58 @@ export default function Home() {
     }
   };
 
+  const handleDelete = async (transactionId: string) => {
+    if (!transactionId) return;
+
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', transactionId);
+
+      if (error) throw error;
+
+      setResult(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          recognized: prev.recognized.filter(t => t.id !== transactionId)
+        };
+      });
+
+      toast.success("Transaction removed");
+    } catch (error: any) {
+      console.error("Delete failed:", error);
+      toast.error(error.message || "Failed to delete transaction");
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!user?.id) return;
+
+    try {
+      const { error } = await supabase
+        .from('financial_notes')
+        .delete()
+        .eq('id', noteId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setHistory(prev => prev.filter(item => item.id !== noteId));
+
+      if (activeNoteId === noteId) {
+        setResult({ recognized: [], unrecognized: [] });
+        setActiveNoteId(null);
+      }
+
+      toast.success("History cleared");
+    } catch (error: any) {
+      console.error("Delete note failed:", error);
+      toast.error(error.message || "Failed to delete history");
+    }
+  };
+
   const fetchHistory = async () => {
     if (!user?.id) return;
     try {
@@ -282,6 +336,7 @@ export default function Home() {
         recipientName: tx.recipient_name,
         senderName: tx.sender_name,
         originalDetail: tx.sub_category,
+        id: tx.id,
         date: new Date(tx.transaction_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
         originalLine: tx.fingerprint.split('-')[0], // Approximation
       }));
@@ -333,6 +388,7 @@ export default function Home() {
         history={history}
         activeNoteId={activeNoteId}
         onLoad={loadHistoricalNote}
+        onDelete={handleDeleteNote}
       />
 
       {/* Floating History Toggle */}
@@ -480,6 +536,7 @@ export default function Home() {
                           reconciliation={reconciliation}
                           hoveredPerson={hoveredPerson}
                           setHoveredPerson={setHoveredPerson}
+                          onDelete={handleDelete}
                         />
                       ))}
                     </div>
@@ -547,7 +604,8 @@ function TransactionCard({
   onToggle,
   reconciliation,
   hoveredPerson,
-  setHoveredPerson
+  setHoveredPerson,
+  onDelete
 }: {
   group: GroupedTransaction;
   isExpanded: boolean;
@@ -555,13 +613,14 @@ function TransactionCard({
   reconciliation: any;
   hoveredPerson: string | null;
   setHoveredPerson: (name: string | null) => void;
+  onDelete: (id: string) => void;
 }) {
   const isLending = group.category === "LENT";
   const isOthers = group.category === "OTHERS";
 
   return (
     <div
-      className={`group rounded-[1.5rem] border transition-all duration-500 overflow-hidden ${isExpanded
+      className={`group/card rounded-[1.5rem] border transition-all duration-500 overflow-hidden ${isExpanded
         ? 'bg-neutral-900 border-neutral-700 shadow-2xl ring-1 ring-white/5'
         : 'bg-neutral-900/20 border-neutral-800 hover:bg-neutral-900/40 hover:border-neutral-700'
         } ${isLending ? 'border-l-4 border-l-blue-500' :
@@ -574,7 +633,7 @@ function TransactionCard({
         className="p-5 md:p-6 cursor-pointer flex justify-between items-center"
       >
         <div className="flex-1 flex items-center gap-4">
-          <div className={`p-2.5 rounded-xl bg-[#0a0a0a] border border-neutral-800 group-hover:border-neutral-600 transition-colors`}>
+          <div className={`p-2.5 rounded-xl bg-[#0a0a0a] border border-neutral-800 group-hover/card:border-neutral-600 transition-colors`}>
             <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform duration-500 ${isExpanded ? 'rotate-180' : ''}`} />
           </div>
           <h3 className="font-bold text-white text-lg md:text-xl leading-tight uppercase tracking-tight">
@@ -603,7 +662,7 @@ function TransactionCard({
                   key={idx}
                   onMouseEnter={() => personName && setHoveredPerson(personName)}
                   onMouseLeave={() => setHoveredPerson(null)}
-                  className={`flex justify-between items-center py-[7px] px-[15px] rounded-xl border transition-all duration-300 ${isHighlighted ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-neutral-900/40 border-white/5 hover:border-white/10 hover:bg-neutral-800/40'}`}
+                  className={`flex justify-between items-center py-[7px] px-[15px] rounded-xl border transition-all duration-300 group/item ${isHighlighted ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-neutral-900/40 border-white/5 hover:border-white/10 hover:bg-neutral-800/40'}`}
                 >
                   <div className="flex-1">
                     <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-5">
@@ -629,9 +688,22 @@ function TransactionCard({
                       )}
                     </div>
                   </div>
-                  <div className={`font-mono text-sm font-black ${group.type === 'income' ? 'text-emerald-400' : 'text-neutral-200'
-                    }`}>
-                    {group.type === 'income' ? '+' : ''}₹{item.amount.toLocaleString()}
+                  <div className="flex items-center gap-4">
+                    <div className={`font-mono text-sm font-black ${group.type === 'income' ? 'text-emerald-400' : 'text-neutral-200'
+                      }`}>
+                      {group.type === 'income' ? '+' : ''}₹{item.amount.toLocaleString()}
+                    </div>
+                    {item.id && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(item.id!);
+                        }}
+                        className="p-1.5 text-neutral-600 hover:text-rose-500 transition-colors opacity-0 group-hover/item:opacity-100"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

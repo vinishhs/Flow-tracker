@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, History, Calendar } from "lucide-react";
+import { X, History, Calendar, Trash2 } from "lucide-react";
 
 export interface HistoricalNote {
     id: string;
@@ -16,9 +16,10 @@ interface HistorySidebarProps {
     history: HistoricalNote[];
     activeNoteId: string | null;
     onLoad: (id: string) => void;
+    onDelete: (id: string) => void;
 }
 
-export function HistorySidebar({ isOpen, onClose, history, activeNoteId, onLoad }: HistorySidebarProps) {
+export function HistorySidebar({ isOpen, onClose, history, activeNoteId, onLoad, onDelete }: HistorySidebarProps) {
     return (
         <AnimatePresence>
             {isOpen && (
@@ -70,6 +71,7 @@ export function HistorySidebar({ isOpen, onClose, history, activeNoteId, onLoad 
                                             onLoad(note.id);
                                             onClose();
                                         }}
+                                        onDelete={() => onDelete(note.id)}
                                     />
                                 ))
                             )}
@@ -87,7 +89,7 @@ export function HistorySidebar({ isOpen, onClose, history, activeNoteId, onLoad 
     );
 }
 
-function NoteCard({ note, isActive, onLoad }: { note: HistoricalNote; isActive: boolean; onLoad: () => void }) {
+function NoteCard({ note, isActive, onLoad, onDelete }: { note: HistoricalNote; isActive: boolean; onLoad: () => void; onDelete: () => void }) {
     const date = new Date(note.created_at);
     const formattedDate = date.toLocaleDateString('en-IN', {
         month: 'short',
@@ -95,9 +97,9 @@ function NoteCard({ note, isActive, onLoad }: { note: HistoricalNote; isActive: 
     });
 
     return (
-        <button
+        <div
             onClick={onLoad}
-            className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 group ${isActive
+            className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 group flex items-center justify-between cursor-pointer ${isActive
                 ? "bg-emerald-500/10 border-emerald-500/30"
                 : "bg-neutral-900/40 border-white/5 hover:border-white/10 hover:bg-neutral-900/60"
                 }`}
@@ -108,6 +110,16 @@ function NoteCard({ note, isActive, onLoad }: { note: HistoricalNote; isActive: 
                     {formattedDate}
                 </span>
             </div>
-        </button>
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                }}
+                className="p-2 text-neutral-600 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                title="Delete History"
+            >
+                <Trash2 className="w-3.5 h-3.5" />
+            </button>
+        </div>
     );
 }

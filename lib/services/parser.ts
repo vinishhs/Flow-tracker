@@ -6,6 +6,7 @@ export interface TransactionData {
   amount: number;
   category: string;
   transaction_type: TransactionType;
+  id?: string;
   date?: string;
   originalDetail?: string;
   originalLine?: string;
