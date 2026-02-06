@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, BarChart3, Info } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 import { ProcessResult } from "@/lib/services/parser";
 import {
     BarChart,
@@ -43,6 +43,7 @@ export function TrendsDashboard({ onBack, currentSessionData }: { onBack: () => 
     const [categoryTrends, setCategoryTrends] = useState<CategoryTrend[]>([]);
     const [globalStats, setGlobalStats] = useState<GlobalStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const supabase = createClient();
 
     useEffect(() => {
         const fetchData = async () => {

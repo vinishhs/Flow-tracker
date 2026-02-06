@@ -8,9 +8,10 @@ import { DebtLedger } from "@/components/debt-ledger";
 import { HistorySidebar, HistoricalNote } from "@/components/history-sidebar";
 import { TrendsDashboard } from "@/components/trends-dashboard";
 import Antigravity from "@/components/Antigravity";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 import { Toaster, toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
+import { useAuth } from "@/context/AuthContext";
 
 interface GroupedTransaction {
   category: string;
@@ -26,6 +27,8 @@ interface GroupedTransaction {
 }
 
 export default function Home() {
+  const supabase = createClient();
+  const { user } = useAuth();
   const [input, setInput] = useState("");
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
@@ -174,18 +177,15 @@ export default function Home() {
   }, [result, reconciliation]);
 
   const handleSaveRecords = async () => {
-    if (!result || result.recognized.length === 0) return;
+    if (!result || result.recognized.length === 0 || !user?.id) return;
 
     setIsSaving(true);
     try {
-      // 1. Fallback user_id (using 'all zeros' UUID as requested)
-      const userId = '00000000-0000-0000-0000-000000000000';
-
       // 2. Insert master record using settled/adjusted totals
       const { data: note, error: noteError } = await supabase
         .from('financial_notes')
         .insert({
-          user_id: userId,
+          user_id: user.id,
           raw_text: input,
           total_in: totals.income,
           total_out: totals.expenses,
@@ -210,7 +210,7 @@ export default function Home() {
         const typeMapping = tx.category === "LENT" ? 'lending' : tx.transaction_type;
 
         return {
-          user_id: userId,
+          user_id: user.id,
           note_id: note.id,
           amount: tx.amount,
           transaction_type: typeMapping,
@@ -244,10 +244,12 @@ export default function Home() {
   };
 
   const fetchHistory = async () => {
+    if (!user?.id) return;
     try {
       const { data, error } = await supabase
         .from('financial_notes')
         .select('id, created_at, net_balance, raw_text')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20);
 
