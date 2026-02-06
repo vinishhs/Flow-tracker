@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
 
     // Protected routes: / and /trends
     const isProtectedRoute =
-        url.pathname === '/' ||
+        url.pathname.startsWith('/dashboard') ||
         url.pathname.startsWith('/trends')
 
     // Public routes: /login
@@ -48,7 +48,7 @@ export async function middleware(request: NextRequest) {
     }
 
     if (user && isPublicRoute) {
-        url.pathname = '/'
+        url.pathname = '/dashboard'
         return NextResponse.redirect(url)
     }
 

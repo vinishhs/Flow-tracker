@@ -64,11 +64,11 @@ Social ₹300`;
                     </div>
 
                     <div className="flex items-center gap-6">
-                        <Link href="/dashboard" className="text-sm font-bold text-neutral-400 hover:text-white transition-colors">
+                        <Link href="/login" className="text-sm font-bold text-neutral-400 hover:text-white transition-colors">
                             Explore
                         </Link>
                         <Link
-                            href="/dashboard"
+                            href="/login"
                             className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
                         >
                             Sign In
@@ -114,7 +114,7 @@ Social ₹300`;
                         className="flex flex-col md:flex-row items-center justify-center gap-4"
                     >
                         <Link
-                            href="/dashboard"
+                            href="/login"
                             className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-black rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
                         >
                             Get Started <ChevronRight className="w-4 h-4" />
@@ -257,7 +257,7 @@ Social ₹300`;
                 >
                     <h2 className="text-2xl md:text-4xl font-black tracking-tight mb-8 text-white">Ready to take control?</h2>
                     <Link
-                        href="/dashboard"
+                        href="/login"
                         className="inline-block px-8 py-4 bg-white text-black rounded-full font-black text-xs uppercase tracking-[0.4em] hover:scale-110 active:scale-95 transition-all shadow-white/10 shadow-2xl"
                     >
                         ENTER THE FLOW
