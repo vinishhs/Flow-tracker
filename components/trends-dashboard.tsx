@@ -90,17 +90,17 @@ export function TrendsDashboard({
                     </button>
 
                     <div className="p-8 md:p-14">
-                        <header className="mb-14 text-center">
-                            <div className="flex items-center justify-center gap-3 mb-4">
-                                <BarChart3 className="w-5 h-5 text-emerald-500" />
-                                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-500">Insights Dashboard</span>
+                        <header className="mb-10 text-center">
+                            <div className="flex items-center justify-center gap-3 mb-3">
+                                <BarChart3 className="w-4 h-4 text-emerald-500" />
+                                <span className="text-[9px] font-black uppercase tracking-[0.4em] text-neutral-500">Insights</span>
                             </div>
-                            <h1 className="text-5xl md:text-6xl font-black text-white tracking-tighter mb-2 uppercase">Category Dominance</h1>
-                            <p className="text-sm text-neutral-500 font-bold uppercase tracking-widest">Projected Impact Analysis</p>
+                            <h1 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-1 uppercase">Category Dominance</h1>
+                            <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-[0.2em]">Projected Impact Analysis</p>
                         </header>
 
-                        <div className="max-w-3xl mx-auto">
-                            <div className="bg-white/[0.03] border border-white/[0.08] rounded-[2.5rem] p-8 md:p-12 relative min-h-[500px]">
+                        <div className="max-w-2xl mx-auto">
+                            <div className="bg-white/[0.02] border border-white/[0.05] rounded-[2rem] p-6 md:p-8 relative min-h-[400px]">
                                 {/* Ghost Pattern Definition */}
                                 <svg style={{ height: 0, width: 0, position: 'absolute' }}>
                                     <defs>
@@ -118,7 +118,7 @@ export function TrendsDashboard({
                                     </defs>
                                 </svg>
 
-                                <ResponsiveContainer width="100%" height={500}>
+                                <ResponsiveContainer width="100%" height={380}>
                                     <BarChart
                                         layout="vertical"
                                         data={chartData}
@@ -172,13 +172,13 @@ export function TrendsDashboard({
                                             }}
                                         />
                                         {/* Saved Data Bar (Solid) */}
-                                        <Bar dataKey="saved" stackId="a" radius={[0, 0, 0, 0]} barSize={32}>
+                                        <Bar dataKey="saved" stackId="a" radius={[0, 0, 0, 0]} barSize={24}>
                                             {chartData.map((entry, index) => (
                                                 <Cell key={`cell-saved-${index}`} fill={entry.category === "LENT" ? "#3b82f6" : "#10b981"} />
                                             ))}
                                         </Bar>
                                         {/* Unsaved Data Bar (Ghost Pattern) */}
-                                        <Bar dataKey="unsaved" stackId="a" radius={[0, 4, 4, 0]} barSize={32}>
+                                        <Bar dataKey="unsaved" stackId="a" radius={[0, 4, 4, 0]} barSize={24}>
                                             {chartData.map((entry, index) => (
                                                 <Cell
                                                     key={`cell-unsaved-${index}`}
@@ -195,10 +195,10 @@ export function TrendsDashboard({
                                 )}
                             </div>
 
-                            <div className="mt-12 text-center">
+                            <div className="mt-8 text-center">
                                 <button
                                     onClick={onBack}
-                                    className="px-8 py-4 bg-white text-black rounded-full font-black text-[10px] uppercase tracking-[0.2em] hover:scale-105 transition-all shadow-xl"
+                                    className="px-6 py-3 bg-white text-black rounded-full font-black text-[9px] uppercase tracking-[0.2em] hover:scale-105 transition-all shadow-xl"
                                 >
                                     Back to Workspace
                                 </button>
