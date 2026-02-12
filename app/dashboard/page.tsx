@@ -430,44 +430,30 @@ export default function Home() {
         onDelete={handleDeleteNote}
       />
 
-      {/* Floating History Toggle */}
-      <div className="fixed top-28 left-8 z-[90] flex flex-col gap-6">
-        <button
+      {/* Floating Sidebar */}
+      <div className="fixed top-28 left-8 z-[90] flex flex-col gap-4">
+        <SidebarIcon
+          icon={<HistoryIcon className="w-5 h-5" />}
+          label="History"
           onClick={() => {
             setIsSidebarOpen(true);
             setHasNewSaves(false);
           }}
-          className="p-4 bg-neutral-900 border border-white/5 rounded-full hover:border-emerald-500/50 transition-all shadow-2xl group relative"
-          title="History"
-        >
-          <HistoryIcon className="w-5 h-5 text-white group-hover:text-emerald-500 transition-colors" />
-          {hasNewSaves && (
-            <span className="absolute top-0 right-0 w-3 h-3 bg-emerald-500 border-4 border-[#0a0a0a] rounded-full animate-pulse" />
-          )}
-        </button>
+          hasNotification={hasNewSaves}
+        />
 
-        <button
+        <SidebarIcon
+          icon={<BarChart3 className="w-5 h-5" />}
+          label={view === 'dashboard' ? 'Trends' : 'Back'}
           onClick={() => {
             if (history.length > 0 || result) {
               setView(view === 'dashboard' ? 'trends' : 'dashboard');
             }
           }}
-          disabled={history.length === 0 && !result}
-          className={`p-4 rounded-full transition-all shadow-2xl group relative border ${view === 'trends'
-            ? "bg-emerald-500 border-emerald-400 text-white"
-            : (history.length === 0 && !result)
-              ? "bg-neutral-900/50 border-white/5 text-neutral-600 cursor-not-allowed opacity-50"
-              : "bg-neutral-900 border-white/5 text-white hover:border-emerald-500/50"
-            }`}
-          title={(history.length === 0 && !result) ? "Save your first record or process data to unlock Trends" : (view === 'dashboard' ? 'Trends' : 'Back to Dashboard')}
-        >
-          <BarChart3 className={`w-5 h-5 transition-colors ${view === 'dashboard' ? ((history.length > 0 || result) ? 'group-hover:text-emerald-500' : 'text-neutral-600') : 'text-white'}`} />
-          {(history.length === 0 && !result) && (
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-black text-[10px] font-bold text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10">
-              Save record or process data to unlock
-            </div>
-          )}
-        </button>
+          isActive={view === 'trends'}
+          isDisabled={history.length === 0 && !result}
+          tooltip={(history.length === 0 && !result) ? "Save record or process data to unlock" : undefined}
+        />
       </div>
 
       <AnimatePresence mode="wait">
@@ -746,6 +732,86 @@ function TransactionCard({
               );
             })}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Sidebar Icon Component with Tooltip ---
+
+function SidebarIcon({
+  icon,
+  label,
+  onClick,
+  isActive,
+  isDisabled,
+  hasNotification,
+  isDanger,
+  tooltip
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  isActive?: boolean;
+  isDisabled?: boolean;
+  hasNotification?: boolean;
+  isDanger?: boolean;
+  tooltip?: string;
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <div className="relative flex items-center group">
+      <button
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onClick={onClick}
+        disabled={isDisabled}
+        className={`p-3.5 rounded-full transition-all duration-300 relative border ${isActive
+          ? "bg-emerald-500 border-emerald-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+          : isDisabled
+            ? "bg-neutral-900/50 border-white/5 text-neutral-600 cursor-not-allowed opacity-50"
+            : isDanger
+              ? "bg-neutral-900 border-white/5 text-white hover:border-rose-500/50 hover:bg-rose-500/10"
+              : "bg-neutral-900 border-white/5 text-white hover:border-emerald-500/50 hover:bg-emerald-500/10"
+          }`}
+      >
+        <div className={`transition-colors duration-300 ${!isActive && (isDanger ? 'group-hover:text-rose-500' : 'group-hover:text-emerald-500')}`}>
+          {icon}
+        </div>
+        {hasNotification && (
+          <span className="absolute top-0 right-0 w-3 h-3 bg-emerald-500 border-4 border-[#0a0a0a] rounded-full animate-pulse" />
+        )}
+      </button>
+
+      {/* Tooltip Wrapper */}
+      <AnimatePresence>
+        {isHovered && !isDisabled && (
+          <motion.div
+            initial={{ opacity: 0, x: 10, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 10, scale: 0.95 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="absolute left-full ml-4 z-[100] flex items-center pointer-events-none"
+          >
+            {/* Arrow */}
+            <div className="w-1.5 h-1.5 bg-[#12121e] rotate-45 border-l border-b border-white/10 -mr-0.5" />
+
+            {/* Tooltip Box */}
+            <div className="px-3 py-1.5 bg-[#12121e] border border-white/10 rounded-xl shadow-2xl backdrop-blur-xl flex items-center justify-center">
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white whitespace-nowrap">
+                {label}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Persistence Tooltip for Disabled State */}
+      {tooltip && (
+        <div className="absolute left-full ml-4 px-3 py-1 bg-black text-[10px] font-bold text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10 z-[100]">
+          {tooltip}
         </div>
       )}
     </div>

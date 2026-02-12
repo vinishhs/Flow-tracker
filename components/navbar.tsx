@@ -25,7 +25,7 @@ export function Navbar() {
                         </span>
                         <button
                             onClick={signOut}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/5 bg-white/5 hover:bg-rose-500/10 hover:border-rose-500/20 hover:text-rose-400 transition-all text-[10px] font-black uppercase tracking-widest text-neutral-400"
+                            className="flex items-center gap-2 px-2 py-1 rounded-xl border border-white/5 bg-white/5 hover:bg-rose-500/10 hover:border-rose-500/20 hover:text-rose-400 transition-all text-[9px] font-black uppercase tracking-widest text-neutral-400"
                             title="Sign Out"
                         >
                             <LogOut className="w-3 h-3" />
