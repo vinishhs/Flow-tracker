@@ -471,7 +471,7 @@ export default function Home() {
       </div>
 
       <AnimatePresence mode="wait">
-        {view === 'dashboard' ? (
+        {view === 'dashboard' && (
           <motion.div
             key="dashboard"
             initial={{ opacity: 0, x: 20 }}
@@ -619,21 +619,15 @@ export default function Home() {
             {/* Dashboard Footer / Spacer */}
             <footer className="h-32" />
           </motion.div>
-        ) : (
-          <motion.div
-            key="trends"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            <TrendsDashboard
-              onBack={() => setView('dashboard')}
-              currentSessionData={result}
-              savedMonthlyTotals={savedMonthlyTotals}
-            />
-          </motion.div>
         )}
+
+        {/* Persistent Trends Dashboard - Controlled via isOpen */}
+        <TrendsDashboard
+          isOpen={view === 'trends'}
+          onClose={() => setView('dashboard')}
+          currentSessionData={result}
+          savedMonthlyTotals={savedMonthlyTotals}
+        />
       </AnimatePresence>
     </main>
   );
